@@ -1,0 +1,307 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Create IAM Role for SAML identity provider",
+    "Parameters": {
+        "SAMLProviderName": {
+            "Type": "String",
+            "Description": "Name of SAML provider."
+        },
+        "FederationRoleName": {
+            "Type": "String",
+            "Description": "Name of new role to be created"
+        }
+    },
+    "Resources": {
+        "AdminFederatedRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "RoleName": { "Fn::Join": ["-", [{ "Ref": "FederationRoleName" }, "Admin"] ] },
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                           {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRoleWithSAML",
+                            "Principal": {
+                                "Federated": {"Fn::Sub": "arn:aws:iam::${AWS::AccountId}:saml-provider/${SAMLProviderName}"} 
+                               },
+                            "Condition": {
+                                "StringEquals": {
+                                    "SAML:aud": "https://signin.aws.amazon.com/saml"
+                                }
+                            }
+						}
+                    ]
+                },
+                "Path": "/",
+                "ManagedPolicyArns": [ "arn:aws:iam::aws:policy/AdministratorAccess" ]
+            }
+        },
+		"DEVEC2StartStopFederatedRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "RoleName": { "Fn::Join": ["-", [{ "Ref": "FederationRoleName" }, "DEV-EC2-Start-Stop" ]]},
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                           {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRoleWithSAML",
+                            "Principal": {
+                                "Federated": {"Fn::Sub": "arn:aws:iam::${AWS::AccountId}:saml-provider/${SAMLProviderName}"} 
+                               },
+                            "Condition": {
+                                "StringEquals": {
+                                    "SAML:aud": "https://signin.aws.amazon.com/saml"
+                                }
+                            }
+						}
+                    ]
+                },
+                "Path": "/",
+                "Policies": [{
+					"PolicyDocument": {
+							"Statement": [
+								  {
+									"Action": [
+										"ec2:StartInstances",
+										"ec2:StopInstances"
+										],
+									"Effect": "Allow",
+									"Resource": "*"
+								}
+							 ],
+							"Version": "2012-10-17"
+					},
+					"PolicyName": { "Fn::Join": ["-", [{ "Ref": "FederationRoleName" }, "DEV-EC2-Start-Stop-Policy" ]]}
+				 }]
+            }
+        },
+		"INTEC2StartStopFederatedRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "RoleName": { "Fn::Join": ["-", [{ "Ref": "FederationRoleName" }, "INT-EC2-Start-Stop" ]]},
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                           {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRoleWithSAML",
+                            "Principal": {
+                                "Federated": {"Fn::Sub": "arn:aws:iam::${AWS::AccountId}:saml-provider/${SAMLProviderName}"} 
+                               },
+                            "Condition": {
+                                "StringEquals": {
+                                    "SAML:aud": "https://signin.aws.amazon.com/saml"
+                                }
+                            }
+						}
+                    ]
+                },
+                "Path": "/",
+                "Policies": [{
+					"PolicyDocument": {
+							"Statement": [
+								  {
+									"Action": [
+										"ec2:StartInstances",
+										"ec2:StopInstances"
+										],
+									"Effect": "Allow",
+									"Resource": "*"
+								}
+							 ],
+							"Version": "2012-10-17"
+					},
+					"PolicyName": { "Fn::Join": ["-", [{ "Ref": "FederationRoleName" }, "INT-EC2-Start-Stop-Policy" ]]}
+				 }]
+            }
+        },
+		"QAEC2StartStopFederatedRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "RoleName": { "Fn::Join": ["-", [{ "Ref": "FederationRoleName" },"QA-EC2-Start-Stop" ]]},
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                           {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRoleWithSAML",
+                            "Principal": {
+                                "Federated": {"Fn::Sub": "arn:aws:iam::${AWS::AccountId}:saml-provider/${SAMLProviderName}"} 
+                               },
+                            "Condition": {
+                                "StringEquals": {
+                                    "SAML:aud": "https://signin.aws.amazon.com/saml"
+                                }
+                            }
+						}
+                    ]
+                },
+                "Path": "/",
+                "Policies": [{
+					"PolicyDocument": {
+							"Statement": [
+								  {
+									"Action": [
+										"ec2:StartInstances",
+										"ec2:StopInstances"
+										],
+									"Effect": "Allow",
+									"Resource": "*"
+								}
+							 ],
+							"Version": "2012-10-17"
+					},
+					"PolicyName": { "Fn::Join": ["-", [{ "Ref": "FederationRoleName" },"QA-EC2-Start-Stop-Policy" ]]}
+				 }]
+            }
+        },
+		"UATEC2StartStopFederatedRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "RoleName": { "Fn::Join": ["-", [{ "Ref": "FederationRoleName" },"UAT-EC2-Start-Stop" ]]},
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                           {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRoleWithSAML",
+                            "Principal": {
+                                "Federated": {"Fn::Sub": "arn:aws:iam::${AWS::AccountId}:saml-provider/${SAMLProviderName}"} 
+                               },
+                            "Condition": {
+                                "StringEquals": {
+                                    "SAML:aud": "https://signin.aws.amazon.com/saml"
+                                }
+                            }
+						}
+                    ]
+                },
+                "Path": "/",
+                "Policies": [{
+					"PolicyDocument": {
+							"Statement": [
+								  {
+									"Action": [
+										"ec2:StartInstances",
+										"ec2:StopInstances"
+										],
+									"Effect": "Allow",
+									"Resource": "*"
+								}
+							 ],
+							"Version": "2012-10-17"
+					},
+					"PolicyName": { "Fn::Join": ["-", [{ "Ref": "FederationRoleName" },"UAT-EC2-Start-Stop-Policy" ]]}
+				 }]
+            }
+        },
+		"AMPMReadOnlyFederatedRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "RoleName": { "Fn::Join": ["-", [{ "Ref": "FederationRoleName" }, "AM-PM-ReadOnly" ]]},
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                           {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRoleWithSAML",
+                            "Principal": {
+                                "Federated": {"Fn::Sub": "arn:aws:iam::${AWS::AccountId}:saml-provider/${SAMLProviderName}"} 
+                               },
+                            "Condition": {
+                                "StringEquals": {
+                                    "SAML:aud": "https://signin.aws.amazon.com/saml"
+                                }
+                            }
+						}
+                    ]
+                },
+                "Path": "/",
+                "ManagedPolicyArns": [ "arn:aws:iam::aws:policy/ReadOnlyAccess" ]
+            }
+        },
+	    "CloudWatchReadOnlyFederatedRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "RoleName": { "Fn::Join": ["-", [{ "Ref": "FederationRoleName" }, "CloudWatch-ReadOnly" ]]},
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                           {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRoleWithSAML",
+                            "Principal": {
+                                "Federated": {"Fn::Sub": "arn:aws:iam::${AWS::AccountId}:saml-provider/${SAMLProviderName}"} 
+                               },
+                            "Condition": {
+                                "StringEquals": {
+                                    "SAML:aud": "https://signin.aws.amazon.com/saml"
+                                }
+                            }
+						}
+                    ]
+                },
+                "Path": "/",
+                "ManagedPolicyArns": [ "arn:aws:iam::aws:policy/CloudWatchReadOnlyAccess" ]
+            }
+        }
+    },
+"Outputs" : {
+	"AdminFedratedRoleArn": {
+			"Value": {"Fn::GetAtt" : ["AdminFederatedRole", "Arn"] },
+			"Description":"Federated Role created for the SAML Provider",
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-AdminFederatedRoleArn"
+				}
+			}
+		},
+	"DEVEC2StartStopFedratedRoleArn": {
+			"Value": {"Fn::GetAtt" : ["DEVEC2StartStopFederatedRole", "Arn"] },
+			"Description":"Federated Role DEV-EC2-Start-Stop created for the SAML Provider",
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-DEVEC2StartStopFederatedRoleArn"
+				}
+			}
+		},
+	"INTEC2StartStopFedratedRoleArn": {
+			"Value": {"Fn::GetAtt" : ["INTEC2StartStopFederatedRole", "Arn"] },
+			"Description":"Federated Role INT-EC2-Start-Stop created for the SAML Provider",
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-INTEC2StartStopFederatedRoleArn"
+				}
+			}
+		},
+	"QAEC2StartStopFedratedRoleArn": {
+			"Value": {"Fn::GetAtt" : ["QAEC2StartStopFederatedRole", "Arn"] },
+			"Description":"Federated Role QA-EC2-Start-Stop created for the SAML Provider",
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-QAEC2StartStopFederatedRoleArn"
+				}
+			}
+		},
+	"AMPMReadOnlyFederatedRoleArn": {
+			"Value": {"Fn::GetAtt" : ["AMPMReadOnlyFederatedRole", "Arn"] },
+			"Description":"Federated Role AM-PM-ReadOnly created for the SAML Provider",
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-AMPMReadOnlyFederatedRoleArn"
+				}
+			}
+		},
+	"CloudWatchReadOnlyFederatedRoleArn": {
+			"Value": {"Fn::GetAtt" : ["CloudWatchReadOnlyFederatedRole", "Arn"] },
+			"Description":"Federated Role CloudWatch-ReadOnly created for the SAML Provider",
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-CloudWatchReadOnlyFederatedRoleArn"
+				}
+			}
+		}
+	}
+}

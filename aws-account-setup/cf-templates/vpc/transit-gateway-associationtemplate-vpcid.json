@@ -1,0 +1,196 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Deploys an AWS Lambda Function that performs a Transit Gateway Attachment and Route creation to a centralized AWS Transit Gateway (RCS-1463)",
+    "Metadata": {
+        "AWS::CloudFormation::Interface": {
+            "ParameterGroups": [
+                {
+                    "Label": {
+                        "default": "Parameter Settings"
+                    },
+                    "Parameters": [
+                        "VpcTag",
+                        "TransitGatewayArn",
+                        "Route"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Lambda Settings"
+                    },
+                    "Parameters": [
+                        "TGWLambdaS3Bucket",
+                        "TGWLambdaS3Key"
+                    ]
+                }
+            ],
+            "ParameterLabels": {
+                "VpcId": {
+                    "default": "VPC Id"
+                },
+                "TransitGatewayArn": {
+                    "default": "Transit Gateway Arn"
+                },
+                "Route": {
+                    "default": "Comma seperated Route Destination CIDR"
+                },
+                "TGWLambdaS3Bucket": {
+                    "default": "S3 Bucket"
+                },
+                "TGWLambdaS3Key": {
+                    "default": "S3 Key"
+                }
+            }
+        }
+    },
+    "Parameters": {
+        "VpcId": {
+            "Description": "VPC Id that you would like to associate with the Transit Gateway",
+            "Type": "String",
+            "Default": "vpc-a8363dd0"
+        },
+        "TransitGatewayArn": {
+            "Description": "The ID of the Central Account Transit Gateway",
+            "Type": "String"
+        },
+        "Route": {
+            "Description": "Destination Route for traffic to the Central Account Transit Gateway  (Comma Separated)",
+            "Type": "String",
+            "Default": "0.0.0.0/0"
+        },
+        "TGWLambdaS3Bucket": {
+            "Description": "S3 Bucket for Transit Gateway Attachment Lambda Code",
+            "Type": "String",
+            "AllowedPattern": "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
+        },
+        "TGWLambdaS3Key": {
+            "Description": "The Key location of the Lambda zip for Transit Gateway Attachment.",
+            "Type": "String",
+            "AllowedPattern": "^[a-zA-Z0-9[\\\\].\\/()!:=?#,@+&;{}$-_]*",
+            "Default": "TransitGatewayAssociationVpcId.zip"
+        }
+    },
+    "Resources": {
+        "GetVpcLambdaRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "lambda.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "TransitGatewayAttachments",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "logs:CreateLogGroup",
+                                        "logs:CreateLogStream",
+                                        "logs:PutLogEvents"
+                                    ],
+                                    "Resource": {
+                                        "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*"
+                                    }
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "ec2:*",
+                                        "iam:ListRoles",
+                                        "iam:CreateServiceLinkedRole",
+										"ram:GetResourceShareInvitations",
+                                        "ram:AcceptResourceShareInvitation"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "GetVpcLambda": {
+            "Type": "AWS::Lambda::Function",
+            "DependsOn": [
+                "GetVpcLambdaRole"
+            ],
+            "Properties": {
+                "Role": {
+                    "Fn::GetAtt": [
+                        "GetVpcLambdaRole",
+                        "Arn"
+                    ]
+                },
+                "Description": "Captures VPC metadata for Transit Gateway Attachments",
+                "Handler": "TransitGatewayAssociationVpcId.lambda_handler",
+                "Runtime": "python3.6",
+                "Timeout": 300,
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "TGWLambdaS3Bucket"
+                    },
+                    "S3Key": {
+                        "Ref": "TGWLambdaS3Key"
+                    }
+                }
+            }
+        },
+        "GetVpcLambdaCustomIvoke": {
+            "Type": "Custom::GetVPCLambdaInvoke",
+            "DependsOn": "GetVpcLambda",
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "GetVpcLambda",
+                        "Arn"
+                    ]
+                },
+                "Vpc_Id": {
+                    "Ref": "VpcId"
+                },
+                "Account": {
+                    "Fn::Sub": "${AWS::AccountId}"
+                },
+                "Region": {
+                    "Fn::Sub": "${AWS::Region}"
+                },
+                "CIDR": {
+                    "Ref": "Route"
+                },
+                "Transit_Gateway_Arn": {
+                    "Ref": "TransitGatewayArn"
+                }
+            }
+        },
+        "LambdaPermission": {
+            "Type": "AWS::Lambda::Permission",
+            "DependsOn": "GetVpcLambda",
+            "Properties": {
+                "Action": "lambda:InvokeFunction",
+                "FunctionName": {
+                    "Fn::GetAtt": [
+                        "GetVpcLambda",
+                        "Arn"
+                    ]
+                },
+                "Principal": "events.amazonaws.com"
+            }
+        }
+    }
+}

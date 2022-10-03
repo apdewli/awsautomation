@@ -1,0 +1,258 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "EC2 Stack",
+	"Parameters": {
+		"envPrefix": {
+			"Description": "Environment name prefix.",
+			"Type": "String",
+			"Default": ""
+		},
+		"ApplicationName": {
+			"Description": "Application Name",
+			"Type": "String",
+			"Default": ""
+		},
+		"AppServerAmi": {
+			"Description": "Server AMI",
+			"Type": "String",
+			"Default": ""
+		},
+		"AppServerName": {
+			"Description": "Enter server name associated to be name tag",
+			"Type": "String",
+			"Default": ""
+		},
+		"AppInstanceType": {
+			"Description": "Enter the Instance type",
+			"Type": "String",
+			"Default": "m5.large"
+		},
+		"Role": {
+			"Description": "Enter the Server Role",
+			"Type": "String",
+			"Default": "AppServer",
+			"AllowedValues": ["AppServer","DBServer","BIServer","InfraServer","DesignerDD6","ActiveMQ"]
+		},
+		"AppSecurityGroup": {
+			"Description": "Select the security group",
+			"Type": "AWS::EC2::SecurityGroup::Id"
+		},
+		"AppSubnet": {
+			"Description": "Select the Subnet",
+			"Type":"AWS::EC2::Subnet::Id"
+		},
+		"Region": {
+            "Type": "String",
+            "Description": "Select the region",
+			"Default": "NorthVirginia",
+			"AllowedValues": [
+					"Ohio",
+					"NorthVirginia",
+					"NorthCalifornia",
+					"Oregon",
+					"CapeTown",
+					"HongKong",
+					"Mumbai",
+					"OsakaLocal",
+					"Seoul",
+					"Singapore",
+					"Sydney",
+					"Tokyo",
+					"Central",
+					"Frankfurt",
+					"Ireland",
+					"London",
+					"Milan",
+					"Paris",
+					"Stockholm",
+					"Bahrain",
+					"SaoPaulo"
+				 ]
+        },
+		"ENVIRONMENT": {
+			"Description": "Enter the environment",
+			"Type": "String",
+			"Default": ""
+			},
+		"BackupPolicy": {
+			"Description": "Enter the backup frequency and retention frequency",
+			"Type": "String",
+			"Default": "yes:f=1d:r=7d",
+			"AllowedValues": [
+					"yes:f=1d:r=7d",
+					"yes:f=2h:r=7d",
+					"yes:f=3h:r=7d",
+					"yes:f=4h:r=7d",
+					"yes:f=8h:r=7d",
+					"yes:f=12h:r=7d",
+					"yes:f=1d:r=3d",
+					"yes:f=2h:r=3d",
+					"yes:f=3h:r=3d",
+					"yes:f=4h:r=3d",
+					"yes:f=8h:r=3d",
+					"yes:f=12h:r=3d"
+				 ]
+			},
+		"JIRATicketID": {
+			"Description": "Enter the JIRA Ticket ID",
+			"Type": "String",
+			"Default": ""
+			},
+		"ServerIamRole": {
+			"Description": "IAM role for the servers",
+			"Type": "String",
+			"Default": "os-ec2-role"
+			},
+		"SNSTopicArn": {
+			"Description": "Notification SNS topic ARN",
+			"Type": "String",
+			"Default": ""
+			},
+		"EnableBackup": {
+			"Description": "Please choose if you want enable backup (Yes/No)",
+			"Type": "String",
+			"Default": "Yes",
+			"AllowedValues": [ "Yes","No" ]  
+			}
+		},
+	"Resources": {
+	    "EC2InstanceProfile": {
+			"Type": "AWS::IAM::InstanceProfile",
+			"Properties": {
+				"Path": "/",
+				"Roles": [{
+					"Ref": "ServerIamRole"
+				}]
+			}
+		},
+		"APPEC2Instance": {
+			"Type": "AWS::EC2::Instance",
+			"Properties": {
+				"DisableApiTermination": "false",
+				"InstanceInitiatedShutdownBehavior": "stop",
+				"ImageId": { "Ref": "AppServerAmi" },
+				"InstanceType": { "Ref": "AppInstanceType" },
+				"IamInstanceProfile": { "Ref": "EC2InstanceProfile" },
+				"Monitoring": "false",
+				"Tags": [{
+						"Key": "Role",
+						"Value": { 
+							"Ref": "Role"
+						}
+					},
+					{
+						"Key": "AccountPrefix",
+						"Value": {
+							"Ref": "envPrefix"
+						}
+					},
+					{
+						"Key": "ENVIRONMENT",
+						"Value": { "Ref": "ENVIRONMENT" }
+					},
+					{
+						"Key": "ApplicationName",
+						"Value": { "Ref": "ApplicationName" }
+					},
+					{
+						"Key": "Name",
+						"Value": { "Ref": "AppServerName" }
+					},
+					{
+						"Key": "backup",
+						"Value": { "Ref": "BackupPolicy" }
+					},
+					{
+						"Key": "CreationTool",
+						"Value": "CloudFormation"
+					},
+					{
+						"Key": "start-time",
+						"Value": "na"
+					},
+					{
+						"Key": "stop-time",
+						"Value": "na"
+					},
+					{
+						"Key": "LastStartTime",
+						"Value": "na"
+					},
+					{
+						"Key": "LastStopTime",
+						"Value": "na"
+					},
+					{
+						"Key": "Backup",
+						"Value": { "Ref": "EnableBackup" }
+					},
+					{
+						"Key": "JIRATicketID",
+						"Value": { "Ref": "JIRATicketID" }
+					}
+				],
+				"NetworkInterfaces": [{
+					"DeleteOnTermination": "true",
+					"Description": "Primary network interface",
+					"DeviceIndex": 0,
+					"SubnetId": { "Ref": "AppSubnet" },
+					"GroupSet": [
+						{ "Ref": "AppSecurityGroup" }
+					]
+				}]
+			}
+		},
+		"CPUAlarmAppServer" : {
+			"Type" : "AWS::CloudWatch::Alarm",
+			"Properties" : {
+			"AlarmDescription" : {"Fn::Join" : ["-", [ "High CPU Alarm for", {"Ref" : "AppServerName"}]]},
+			"AlarmActions" : [ {"Ref":"SNSTopicArn"} ],
+			"MetricName" : "CPUUtilization",
+			"Namespace" : "AWS/EC2",
+			"Statistic" : "Average",
+			"AlarmName": {"Fn::Join" : ["-", [{"Ref" : "AppServerName"}, "High-CPUUtilization"]]},
+			"Period" : "300",
+			"EvaluationPeriods" : "1",
+			"Threshold" : "75",
+			"ComparisonOperator" : "GreaterThanThreshold",
+			"Dimensions" : [ {
+							"Name" : "InstanceId",
+							"Value" : { "Ref": "APPEC2Instance" }
+							} 
+						]
+					}
+				},
+		"StatusCheckFailedAppServer" : {
+			"Type" : "AWS::CloudWatch::Alarm",
+			"Properties" : {
+			"AlarmDescription" : {"Fn::Join" : ["-", [ "Status check alarm for", {"Ref" : "AppServerName"}]]},
+			"AlarmActions" : [ {"Ref":"SNSTopicArn"} ],
+			"MetricName" : "StatusCheckFailed",
+			"Namespace" : "AWS/EC2",
+			"Statistic" : "Minimum",
+			"AlarmName": {"Fn::Join" : ["-", [{"Ref" : "AppServerName"}, "StatusCheckFailed"]]},
+			"Period" : "120",
+			"EvaluationPeriods" : "2",
+			"Threshold" : "0",
+			"ComparisonOperator" : "GreaterThanThreshold",
+			"Dimensions" : [ {
+							"Name" : "InstanceId",
+							"Value" : { "Ref": "APPEC2Instance" }
+							} 
+						]
+					}
+				}
+			},
+		"Outputs": {
+			"APPEC2Instance": {
+				"Value": {
+					"Ref": "APPEC2Instance"
+				},
+				"Export": {
+					"Name": {
+						"Fn::Sub": "${AWS::StackName}-APPEC2Instance"
+					}
+				}
+			}
+		}
+	}

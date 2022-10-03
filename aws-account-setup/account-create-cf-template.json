@@ -1,0 +1,404 @@
+{
+  "Description": "New Account Builder CloudFormation Template.",
+  "Parameters": {
+    "AWSChildAccountEmailId": {
+      "Description": "Email address for new child account root user. Enter a valid email id which accepts incoming emails.",
+	  "AllowedPattern": "^[\\x20-\\x45]?[\\w-\\+]+(\\.[\\w]+)*@[\\w-]+(\\.[\\w]+)*(\\.[a-z]{2,})$",
+      "Type": "String",
+      "ConstraintDescription": "Must provide a valid email address"
+    },
+    "AliasForNewAWSAccount": {
+      "Description": "Name of the new AWS Account. Account name can be an alphanumeric string without spaces.",
+      "Type": "String",
+	  "AllowedPattern": ".+",
+	  "ConstraintDescription": "Account name should be alphanumeric string without spaces."
+    },
+    "AccountSetupSourceS3bucket": {
+      "Description": "Bucket holding the Lambda Code",
+	  "AllowedPattern": "(?=^.{3,63}$)(?!xn--)([a-z0-9](?:[a-z0-9-]*)[a-z0-9])$",
+      "Type": "String"
+    },
+	"LambdaZipFileName": {
+      "Description": "Name of the lambda code ZIP file",
+      "Type": "String",
+      "Default": "lambda-code/AccountCreationLambda.zip"
+    },
+    "SAMLFederationFile": {
+            "Type": "String",
+            "Description": "Name of file containing the federation meta-data.",
+			"Default": "FederationMetadata.xml"
+        },
+	"AccountSetupNotificationEmail": {
+            "Type": "String",
+			"AllowedPattern": "^[\\x20-\\x45]?[\\w-\\+]+(\\.[\\w]+)*@[\\w-]+(\\.[\\w]+)*(\\.[a-z]{2,})$",
+			"ConstraintDescription": "Must provide a valid email address",
+            "Description": "Email-id to send notifications. This email willbe used to send the detail of the new child account."
+        },
+	"NewAccountSetupStackName": {
+	        "Type": "String",
+			"Description": "Name of the master stack of account setup in new account. Stack name can include letters (A-Z and a-z), numbers (0-9), and dashes (-).",
+			"Default": "AccountSetpStack"
+		},
+	"PasswordHardExpiry": {
+            "Description": "Prevent IAM users from choosing a new password after their current password has expired.",
+            "Type": "String",
+            "Default": false,
+            "AllowedValues": [
+                true,
+                false
+            ]
+        },
+	"ManagedInstanceId": {
+	        "Type": "String",
+			"Description": "Instance id of the managed AD instance in SSM",
+			"Default": "xx-xxxxxxxxxxxxx",
+			"ConstraintDescription" : "Provide a valid Managed instance id"
+		},
+	"AmiSourceRegion": {
+            "Type": "String",
+            "Description": "Select the source region to copy AMI.",
+			"Default":"NorthVirginia",
+			"AllowedValues": [
+					"Ohio",
+					"NorthVirginia",
+					"NorthCalifornia",
+					"Oregon",
+					"CapeTown",
+					"HongKong",
+					"Mumbai",
+					"OsakaLocal",
+					"Seoul",
+					"Singapore",
+					"Sydney",
+					"Tokyo",
+					"Central",
+					"Frankfurt",
+					"Ireland",
+					"London",
+					"Milan",
+					"Paris",
+					"Stockholm",
+					"Bahrain",
+					"SaoPaulo"
+				 ]
+        },
+	"AmiDestinationRegion": {
+            "Type": "String",
+            "Description": "Select the destination region to copy AMI. ",
+			"Default":"NorthVirginia",
+			"AllowedValues": [
+					"Ohio",
+					"NorthVirginia",
+					"NorthCalifornia",
+					"Oregon",
+					"CapeTown",
+					"HongKong",
+					"Mumbai",
+					"OsakaLocal",
+					"Seoul",
+					"Singapore",
+					"Sydney",
+					"Tokyo",
+					"Central",
+					"Frankfurt",
+					"Ireland",
+					"London",
+					"Milan",
+					"Paris",
+					"Stockholm",
+					"Bahrain",
+					"SaoPaulo"
+				 ]
+        },
+	"AmiTag": {
+	        "Type": "String",
+			"Description": "Tag to filter AMI's to copy",
+			"Default": "type",
+			"ConstraintDescription": "Only EBS Backed AMI's will be copied."
+		},
+	"AmiTagValue": {
+	        "Type": "String",
+			"Description": "Value of Tag to filter AMI's to copy",
+			"Default": "golden",
+			"ConstraintDescription": "Ensure that the AMIs don't have Instance store Volumes. No instance store AMI's will be copied."
+		},
+	"IsTransitGatewayRequired": {
+	        "Type": "String",
+			"Description": "Select Yes and provide Transit Gateway Arn if transit gateway will be used.",
+			"Default": "No",
+			"AllowedValues":["Yes", "No"]
+		},
+	"TransitGatewayArn": {
+            "Type": "String",
+            "Description": "ARN of the Transit Gateway.",
+            "Default": "",
+            "ConstraintDescription": "Value should be a valid arn of transit gateway. Check output in Transit Gateway stack."
+        },
+	"TransitGatewayResourceShareName": {
+            "Type": "String",
+            "Description": "Name of the transit gateway resource share.",
+			"Default": ""
+		}           
+ },
+ "Conditions" : {
+    "CreateTransitGatewayShare" : {"Fn::Equals" : [{"Ref" : "IsTransitGatewayRequired"}, "Yes"]}
+  },
+ "Mappings" : {
+    "AWSRegionName" : {
+        "Ohio"    			:  { "Name"   :  "us-east-2", "AZ1" : "us-east-2a", "AZ2" : "us-east-2b" },
+		"NorthVirginia"   	:  { "Name"   :  "us-east-1", "AZ1" : "us-east-1a", "AZ2" : "us-east-1b" },
+		"NorthCalifornia" 	:  { "Name"   :  "us-west-1", "AZ1" : "us-west-1a", "AZ2" : "us-west-1b" },
+		"Oregon"    		:  { "Name"   :  "us-west-2", "AZ1" : "us-west-2a", "AZ2" : "us-west-2b" },
+		"CapeTown"    		:  { "Name"   :  "af-south-1", "AZ1" : "af-south-1a", "AZ2" : "af-south-1b" },
+		"HongKong"    		:  { "Name"   :  "ap-east-1", "AZ1" : "ap-east-1a", "AZ2" : "ap-east-1b" },
+		"Mumbai"    		:  { "Name"   :  "ap-south-1", "AZ1" : "ap-south-1a", "AZ2" : "ap-south-1b" },
+		"OsakaLocal"   		:  { "Name"   :  "ap-northeast-3", "AZ1" : "ap-northeast-3a", "AZ2" : "ap-northeast-3b" },
+		"Seoul"    			:  { "Name"   :  "ap-northeast-2", "AZ1" : "ap-northeast-2a", "AZ2" : "ap-northeast-2b" },
+		"Singapore"    		:  { "Name"   :  "ap-southeast-1", "AZ1" : "ap-southeast-1a", "AZ2" : "ap-southeast-1b" },
+		"Sydney"    		:  { "Name"   :  "ap-southeast-2", "AZ1" : "ap-southeast-2a", "AZ2" : "ap-southeast-2b" },
+		"Tokyo"    			:  { "Name"   :  "ap-northeast-1", "AZ1" : "ap-northeast-1a", "AZ2" : "ap-northeast-1b" },
+		"Central"    		:  { "Name"   :  "ca-central-1", "AZ1" : "ca-central-1a", "AZ2" : "ca-central-1b" },
+		"Frankfurt"    		:  { "Name"   :  "eu-central-1", "AZ1" : "eu-central-1a", "AZ2" : "eu-central-1b" },
+		"Ireland"    		:  { "Name"   :  "eu-west-1", "AZ1" : "eu-west-1a", "AZ2" : "eu-west-1b" },
+		"London"    		:  { "Name"   :  "eu-west-2", "AZ1" : "eu-west-2a", "AZ2" : "eu-west-2b" },
+		"Milan"    			:  { "Name"   :  "eu-south-1", "AZ1" : "eu-south-1a", "AZ2" : "eu-south-1b" },
+		"Paris"    			:  { "Name"   :  "eu-west-3", "AZ1" : "eu-west-3a", "AZ2" : "eu-west-3b" },
+		"Stockholm"    		:  { "Name"   :  "eu-north-1", "AZ1" : "eu-north-1a", "AZ2" : "eu-north-1b" },
+		"Bahrain"    		:  { "Name"   :  "me-south-1", "AZ1" : "me-south-1a", "AZ2" : "me-south-1b" },
+		"SaoPaulo"    		:  { "Name"   :  "sa-east-1", "AZ1" : "sa-east-1a", "AZ2" : "sa-east-1b" }
+      }
+  },
+  "Resources": {
+     "lambdaExecutionRole": {
+        "Type": "AWS::IAM::Role",
+	    "Properties": {
+	       "AssumeRolePolicyDocument": {
+				"Statement": [{
+				"Action": ["sts:AssumeRole"],
+				"Effect": "Allow",
+				"Principal": {
+					"Service": ["lambda.amazonaws.com"]
+				}
+		    }],
+	        "Version": "2012-10-17"
+	       },
+	    "Path": "/",
+	    "Policies": [{
+	        "PolicyDocument": {
+                    "Statement": [
+                        {
+			    "Action": [
+                               "logs:CreateLogGroup",
+                               "logs:CreateLogStream",
+                               "logs:PutLogEvents"
+                            ],
+			    "Effect": "Allow",
+			    "Resource": "arn:aws:logs:*:*:*"
+		        },
+                        {
+		            "Action": [
+                        "cloudformation:DescribeStacks",
+						"cloudformation:ListStackResources",
+						"ec2:Describe*",
+						"ec2:DeleteSubnet",
+						"ec2:DeleteVpc",
+						"ec2:DeleteInternetGateway",
+						"ec2:DatachInternetGateway",
+						"ec2:ModifyImageAttribute",
+						"ec2:ModifySnapshotAttribute",
+						"ec2:CopyImage",
+						"ec2:DescribeImageAttribute",
+						"lambda:CreateFunction",
+						"lambda:DeleteFunction",
+						"lambda:GetAccountSettings",
+						"lambda:GetAlias",
+						"lambda:GetEventSourceMapping",
+						"lambda:GetFunction",
+						"lambda:GetFunctionConcurrency",
+						"lambda:GetFunctionConfiguration",
+						"lambda:GetFunctionEventInvokeConfig",
+						"lambda:GetLayerVersion",
+						"lambda:GetLayerVersionByArn",
+						"lambda:GetLayerVersionPolicy",
+						"lambda:GetPolicy",
+						"lambda:GetProvisionedConcurrencyConfig",
+						"lambda:InvokeFunction",
+						"lambda:ListAliases",
+						"lambda:ListEventSourceMappings",
+						"lambda:ListFunctionEventInvokeConfigs",
+						"lambda:ListFunctions",
+						"lambda:ListLayers",
+						"lambda:ListLayerVersions",
+						"lambda:ListProvisionedConcurrencyConfigs",
+						"lambda:ListTags",
+						"lambda:ListVersionsByFunction",
+						"organizations:CreateAccount",
+						"organizations:CreateOrganizationalUnit",
+						"organizations:CreatePolicy",
+						"organizations:DescribeAccount",
+						"organizations:DescribeCreateAccountStatus",
+						"organizations:DescribeEffectivePolicy",
+						"organizations:DescribeHandshake",
+						"organizations:DescribeOrganization",
+						"organizations:DescribeOrganizationalUnit",
+						"organizations:DescribePolicy",
+						"organizations:EnablePolicyType",
+						"organizations:ListAccounts",
+						"organizations:ListAccountsForParent",
+						"organizations:ListAWSServiceAccessForOrganization",
+						"organizations:ListChildren",
+						"organizations:ListCreateAccountStatus",
+						"organizations:ListDelegatedAdministrators",
+						"organizations:ListDelegatedServicesForAccount",
+						"organizations:ListHandshakesForAccount",
+						"organizations:ListHandshakesForOrganization",
+						"organizations:ListOrganizationalUnitsForParent",
+						"organizations:ListParents",
+						"organizations:ListPolicies",
+						"organizations:ListPoliciesForTarget",
+						"organizations:ListRoots",
+						"organizations:ListTagsForResource",
+						"organizations:ListTargetsForPolicy",
+						"organizations:MoveAccount",
+						"organizations:TagResource",
+						"organizations:UntagResource",
+						"s3:*",
+						"sns:*",
+						"ssm:SendCommand",
+						"sts:AssumeRole"
+						],
+			    "Effect": "Allow",
+			    "Resource": "*"
+			}
+                     ],
+		     "Version": "2012-10-17"
+		},
+		"PolicyName": { "Fn::Join": ["-", [{ "Ref": "AliasForNewAWSAccount" }, "Lambda-Policy"]]}
+	     }]
+        }
+    },
+    "AccountBuilderLambda": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": {"Fn::Join": ["",["CreateAccountAWS", {"Ref" :"AliasForNewAWSAccount"}]]},
+        "Code": {
+          "S3Bucket": {"Ref": "AccountSetupSourceS3bucket"},
+          "S3Key": {"Ref": "LambdaZipFileName"}
+        },
+        "Environment": {
+          "Variables": {
+            "accountname": {"Ref" :"AliasForNewAWSAccount"},
+            "accountemail": {"Ref" :"AWSChildAccountEmailId" },
+			"sources3bucket": { "Ref": "AccountSetupSourceS3bucket" },
+			"notification_email_id": {"Ref": "AccountSetupNotificationEmail" },
+			"federation_file": {"Ref": "SAMLFederationFile" },
+			"managed_instance_id": {"Ref": "ManagedInstanceId" },
+			"stackname": {"Ref": "NewAccountSetupStackName" },
+			"passwordhardexpiry": {"Ref": "PasswordHardExpiry" },
+			"lambdarolearn": {"Fn::GetAtt" : ["lambdaExecutionRole", "Arn"] },
+			"ami_source_region": { "Fn::FindInMap" : [ "AWSRegionName", { "Ref" : "AmiSourceRegion" }, "Name"]},
+			"ami_destination_region": { "Fn::FindInMap" : [ "AWSRegionName", { "Ref" : "AmiDestinationRegion" }, "Name"]},
+			"ami_filter_tag_name": {"Ref": "AmiTag" },
+			"ami_filter_tag_value": {"Ref": "AmiTagValue" }
+			}
+		 },
+        "Handler": "AccountCreationLambda.lambda_handler",
+        "Role": { "Fn::GetAtt" : ["lambdaExecutionRole", "Arn"] },
+        "Runtime": "python3.7",
+        "Timeout": 900
+      }
+    },
+    "TriggerLambda": {
+      "Type": "Custom::TriggerLambda",
+      "DeletionPolicy": "Retain",
+      "DependsOn": [
+        "AccountBuilderLambda"
+      ],
+      "Properties": {
+        "ServiceToken": { "Fn::GetAtt" : ["AccountBuilderLambda", "Arn"] }
+      }
+    },
+	"VpcPeeringRole": {
+      "Type": "AWS::IAM::Role",
+	  "DependsOn":"TriggerLambda",
+      "Properties": {
+		"RoleName": { "Fn::Join" : [ "-", [ "VPC-Peering-Account", {"Fn::GetAtt": ["TriggerLambda", "AccountId" ]} ] ] },
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Principal": {
+                "AWS": {"Fn::GetAtt": ["TriggerLambda", "AccountId" ]}
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ],
+              "Effect": "Allow"
+            }
+          ]
+        },
+        "Path": "/",
+        "Policies": [
+            {
+			"PolicyName": { "Fn::Join" : [ "-", [ "VPC-Peering-Account", {"Fn::GetAtt": ["TriggerLambda", "AccountId" ]} ] ] },
+			"PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+						{
+						  "Effect": "Allow",
+						  "Action": "ec2:AcceptVpcPeeringConnection",
+						  "Resource": "*"
+						}
+					]
+				}
+			 }
+			]
+		}
+	},
+	"TransitGatewayResourceShare": {
+      "Type": "AWS::RAM::ResourceShare",
+	  "Condition" : "CreateTransitGatewayShare",
+	  "DependsOn":"TriggerLambda",
+      "Properties": {
+        "Name": {"Ref":"TransitGatewayResourceShareName"},
+        "ResourceArns": [
+          {"Ref":"TransitGatewayArn"}
+        ],
+        "Principals": [
+          {"Fn::GetAtt": ["TriggerLambda", "AccountId" ]}
+        ],
+        "Tags": [
+          {
+            "Key": "Account",
+            "Value": {"Fn::GetAtt": ["TriggerLambda", "AccountId" ]}
+          }
+        ]
+      }
+    }
+},
+"Outputs": {
+    "NewAccountID": {
+      "Value": {
+        "Fn::GetAtt": [	 "TriggerLambda", "AccountId" ] }
+    },
+    "NewAccountRoleName": {
+      "Value": {
+        "Fn::GetAtt": ["TriggerLambda", "MasterIAMRole" ] }
+    },
+    "NewAccountRoleArn": {
+      "Value": {
+        "Fn::GetAtt": ["TriggerLambda","MasterIAMRoleArn" ] }
+    },
+	"S3bucketName": {
+      "Value": {
+        "Fn::GetAtt": ["TriggerLambda","s3BucketName" ] }
+    },
+	"FederationRoleName": {
+      "Value": {
+        "Fn::GetAtt": ["TriggerLambda","FederationRoleName" ] }
+    },
+	"ADGroupName": {
+      "Value": {
+        "Fn::GetAtt": ["TriggerLambda","ADGroupName" ] }
+    }
+  }
+}

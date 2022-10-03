@@ -1,0 +1,133 @@
+{
+	"AWSTemplateFormatVersion":"2010-09-09",
+	"Description":"CloudFormation Template for Deployment of RDS instance",
+	"Parameters": {
+		"envPrefix": {
+			"Description": "Environment name prefix.",
+			"Type": "String"
+		},
+		"DbSecurityGroup": {
+				"Description": "Select the security group",
+				"Type": "String"
+			},
+		"DbSubnetGroup": {
+				"Description": "Select the Subnet Group",
+				"Type":"String"
+			},
+		"ENVIRONMENT": {
+				"Description": "Enter the environment",
+				"Type": "String"
+				},
+		"JIRATicketID": {
+				"Description": "Enter the JIRA Ticket ID",
+				"Type": "String"
+				},
+		"SNSTopicArn": {
+				"Description": "Notification SNS topic ARN",
+				"Type": "String"
+				},
+		"EnableBackup": {
+			"Description": "Please choose if you want enable backup (Yes/No)",
+			"Type": "String" 
+			},
+		"DbName" : {
+				"Description" : "Schema Name for RDS",
+				"Type": "String"
+			},
+		"DbInstanceClass": {
+				"Description": "Type DBInstance Class.",
+				"Type": "String"				
+			},
+		"Port": {
+				"Description": "Type Port.",
+				"Type": "String"
+			},
+		"BackupRetentionPeriod": {
+				"Description": "Backup Retention Period for automatic snapshots",
+				"Type": "String"
+			},
+		"DbSnapshotIdentifier" : {
+				"Description" : " The RDS Oracle snapshot name to restore to the new DB instance.",
+				"Type": "String"
+			},
+		"DbInstanceIdentifier" : {
+				"Description" : " The RDS Oracle snapshot name to restore to the new DB instance.",
+				"Type": "String"
+			},
+		"DbEngine": {
+				"Description": "Type Engine.",
+				"Type": "String"
+			},
+		"DbEngineVersion": {
+				"Description": "Oracle Engine Version.",
+				"Type": "String"
+			},
+		"LicenseModel": {
+				"Description": "Type License Model.",
+				"Type": "String"
+			},
+		"MultiAZ": {
+				"Description": "Multi AZ Installation",
+				"Type": "String"
+			},
+		"DbOptionGroup": {
+				"Description": "RDS Option Group",
+				"Type":"String"
+			},
+		"DbParameterGroup": {
+				"Description": "RDS Option Group",
+				"Type":"String"
+			},
+		"DbStorageType" : {
+				"Description": "Storage Type for the database",
+				"Type":"String"
+		},
+		"AvailabilityZone": {
+			"Description": "Select the Primary AvailabilityZone",
+			"Type": "String"
+		},
+		"CharacterSetName" : {
+			"Description": "Character set for the database instance",
+			"Type":"String"
+		},
+		"PreferredMaintenanceWindow":{
+			"Description": "Schedule for Maintenance window in ddd:hh24:mi-ddd:hh24:mi format",
+			"Type":"String"
+		},
+		"DeleteProtection":{
+			"Description": "Will delete protection be enabled",
+			"Type":"String"
+		}
+	},
+	"Resources":{
+	    "RDSRestoreInstance": {
+			"Type": "AWS::RDS::DBInstance",
+			"DeletionPolicy": "Retain",
+			"Properties": {
+				"DBInstanceClass": {"Ref":"DbInstanceClass"},
+				"AvailabilityZone" : {"Ref":"AvailabilityZone"},
+				"BackupRetentionPeriod": {"Ref":"BackupRetentionPeriod"},
+				"DBInstanceIdentifier": { "Ref": "DbInstanceIdentifier" },
+				"DBName": {	"Ref": "DbName"	},
+				"DBParameterGroupName": { "Ref":"DbParameterGroup" },
+				"Port": { "Ref": "Port"	},
+				"DBSnapshotIdentifier" : { "Ref":"DbSnapshotIdentifier" },
+				"Engine": {	"Ref": "DbEngine"	},
+				"EngineVersion" : {	"Ref": "DbEngineVersion"	},
+				"LicenseModel": { "Ref": "LicenseModel"	},
+				"MultiAZ": {"Ref": "MultiAZ" },
+				"StorageType": {"Ref":"DbStorageType"},
+				"CopyTagsToSnapshot" : true ,
+				"CharacterSetName":{"Ref":"CharacterSetName"},
+				"DBSubnetGroupName": { "Ref":"DbSubnetGroup" },
+				"VPCSecurityGroups": [{	"Ref": "DbSecurityGroup"}],
+				"AutoMinorVersionUpgrade" : true,
+				"DeletionProtection" : {"Ref":"DeleteProtection"},
+				"PreferredMaintenanceWindow":{"Ref":"PreferredMaintenanceWindow"}
+			}	
+        }
+   },
+	"Outputs":{
+      
+   }
+}

@@ -1,0 +1,159 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "This is the CloudFormation script for deployment of a Transit Gateway (RCS-1463)",
+    "Metadata": {
+        "AWS::CloudFormation::Interface": {
+            "ParameterGroups": [
+                {
+                    "Label": {
+                        "default": "Transit Gateway Configuration"
+                    },
+                    "Parameters": [
+                        "AmazonAsn",
+                        "AutoAcceptSharedAttachments",
+                        "DefaultRouteTableAssociation",
+                        "DefaultRouteTablePropagation",
+                        "DnsSupport",
+                        "VpnEcmpSupport",
+						"TransitGatewayName"
+                    ]
+                }
+            ],
+            "ParameterLabels": {
+                "AmazonAsn": {
+                    "default": "Amazon Side ASN"
+                },
+                "AutoAcceptSharedAttachments": {
+                    "default": "Auto Accept Share Attachments"
+                },
+                "DefaultRouteTableAssociation": {
+                    "default": "Auto Associate Route Table Association"
+                },
+                "DefaultRouteTablePropagation": {
+                    "default": "Automatic Route Propagation"
+                },
+                "DnsSupport": {
+                    "default": "DNS Support"
+                },
+                "VpnEcmpSupport": {
+                    "default": "Equal Cost Multipath Protocol"
+                },
+				"TransitGatewayName": {
+                    "default": ""
+                }
+            }
+        }
+    },
+    "Parameters": {
+        "AmazonAsn": {
+            "Type": "String",
+            "Description": "A private Autonomous System Number (ASN) for the Amazon side of a BGP session.",
+            "Default": 65000,
+            "MinLength": 5,
+            "MaxLength": 10,
+            "ConstraintDescription": "The range is 64512 to 65534 for 16-bit ASNs and 4200000000 to 4294967294 for 32-bit ASNs."
+        },
+        "AutoAcceptSharedAttachments": {
+            "Type": "String",
+            "Description": "Indicates whether cross-account attachment requests are automatically accepted.",
+            "Default": "enable",
+            "AllowedValues": [
+                "enable",
+                "disable"
+            ]
+        },
+        "DefaultRouteTableAssociation": {
+            "Type": "String",
+            "Description": "Enable or disable automatic association with the default association route table.",
+            "Default": "enable",
+            "AllowedValues": [
+                "enable",
+                "disable"
+            ]
+        },
+        "DefaultRouteTablePropagation": {
+            "Type": "String",
+            "Description": "Enable or disable automatic propagation of routes to the default propagation route table.",
+            "Default": "enable",
+            "AllowedValues": [
+                "enable",
+                "disable"
+            ]
+        },
+        "DnsSupport": {
+            "Type": "String",
+            "Description": "Enable or disable DNS support.",
+            "Default": "enable",
+            "AllowedValues": [
+                "enable",
+                "disable"
+            ]
+        },
+        "VpnEcmpSupport": {
+            "Type": "String",
+            "Description": "Enable or disable Equal Cost Multipath Protocol.",
+            "Default": "disable",
+            "AllowedValues": [
+                "enable",
+                "disable"
+            ]
+        },
+		"TransitGatewayName": {
+            "Type": "String",
+            "Description": "Name for the Transit Gateway",
+            "Default": ""
+            }
+    },
+    "Resources": {
+        "TransitGateway": {
+            "Type": "AWS::EC2::TransitGateway",
+            "Properties": {
+                "AmazonSideAsn": {
+                    "Ref": "AmazonAsn"
+                },
+                "AutoAcceptSharedAttachments": {
+                    "Ref": "AutoAcceptSharedAttachments"
+                },
+                "DefaultRouteTableAssociation": {
+                    "Ref": "DefaultRouteTableAssociation"
+                },
+                "DefaultRouteTablePropagation": {
+                    "Ref": "DefaultRouteTablePropagation"
+                },
+                "Description": "Transit Gateway serves as a centralized outgoing gateway for networking traffic",
+                "DnsSupport": {
+                    "Ref": "DnsSupport"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {"Ref":"TransitGatewayName"}
+                    }
+                ],
+                "VpnEcmpSupport": {
+                    "Ref": "VpnEcmpSupport"
+                }
+            }
+        }
+    },
+    "Outputs": {
+        "TransitGatewayId": {
+            "Description": "The Transit Gateway ID",
+            "Value": {"Ref": "TransitGateway"},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-TransitGatewayId"
+				}
+			}
+        },
+		"TransitGatewayArn": {
+            "Description": "The Transit Gateway Arn",
+			"Value": {"Fn::Join" : ["", [ "arn:aws:ec2:", {"Ref":"AWS::Region"}, ":", {"Ref":"AWS::AccountId"}, ":transit-gateway/", {"Ref": "TransitGateway"}]]},
+        	"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-TransitGatewayArn"
+				}
+			}
+		}
+    }
+}

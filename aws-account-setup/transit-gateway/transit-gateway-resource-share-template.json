@@ -1,0 +1,42 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Parameters": {
+        "TransitGatewayArn": {
+            "Type": "String",
+            "Description": "ARN of the Transit Gateway.",
+            "Default": "",
+            "ConstraintDescription": "Value should be a valid arn of transit gateway. Check output in Transit Gateway stack."
+        },
+		"ChildAccountNumber": {
+            "Type": "String",
+            "Description": "AWS account number with which the Transit Gateway will be shared.",
+            "Default": "",
+            "ConstraintDescription": "Should be a valid 12 digit AWS account number"
+        },
+		"TransitGatewayResourceShareName": {
+            "Type": "String",
+            "Description": "Name of the transit gateway resource share.",
+            "Default": ""
+        }
+  },
+  "Resources": {
+    "TransitGatewayResourceShare": {
+      "Type": "AWS::RAM::ResourceShare",
+      "Properties": {
+        "Name": {"Ref":"TransitGatewayResourceShareName"},
+        "ResourceArns": [
+          {"Ref":"TransitGatewayArn"}
+        ],
+        "Principals": [
+          {"Ref":"ChildAccountNumber" }
+        ],
+        "Tags": [
+          {
+            "Key": "Account",
+            "Value": {"Ref":"ChildAccountNumber" }
+          }
+        ]
+      }
+    }
+  }
+}

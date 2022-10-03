@@ -1,0 +1,71 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "IAM role for EC2 instnces",
+	"Parameters": {
+	"EC2IamRoleName": {
+		"Description": "Name for the EC2 IAM role",
+		"Type":"String",
+		"Default":"os-ec2-role"
+		},
+	"RolePurpose":{
+		"Description": "Purpose for the IAM Role",
+		"Type":"String",
+		"Default":"IAM-Role-For-EC2-Instances"
+		}
+	},
+    "Resources": {
+        "EC2IamRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "RoleName": {"Ref": "EC2IamRoleName"},
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "ec2.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "ManagedPolicyArns": [
+                    "arn:aws:iam::aws:policy/CloudWatchFullAccess",
+                    "arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess",
+					"arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {"Ref": "EC2IamRoleName"}
+                    },
+                    {
+                        "Key": "Purpose",
+                        "Value": {"Ref": "RolePurpose"}
+                    }
+                ]
+            }
+		}
+	},
+	"Outputs": {
+        "EC2IamRole": {
+            "Description": "The ARN of the EC2 role.",
+            "Value": {
+                "Fn::GetAtt": [
+                    "EC2IamRole",
+                    "Arn"
+                ]
+            },
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-EC2IamRoleARN"
+				}
+			}
+        }
+    }
+}

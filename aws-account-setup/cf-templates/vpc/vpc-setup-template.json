@@ -1,0 +1,4531 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "VPC creation for OneShield",
+	"Metadata"                 : {
+        "AWS::CloudFormation::Interface" : {
+            "ParameterGroups" : [
+                {
+                    "Label" : {
+                        "default" : "Prerequisites"
+                    },
+                    "Parameters" : [
+                        "IsCloudTrailEnabled"
+                    ]
+                }
+            ],
+            "ParameterLabels" : {
+                "IsCloudTrailEnabled" : {
+                    "default" : "Is CloudTrail already enabled in this region? CloudTrail is a requirement for Cloudwatch Events. If not enabled, please enable CloudTrail before proceeding."
+                }
+            }
+        }
+    },
+    "Parameters": {
+		"envPrefix": {
+			"Description": "Environment name prefix.",
+			"Type": "String",
+			"Default": ""
+		},
+		"VpcCIDR": {
+            "Type": "String",
+            "Description": "Please enter VPC CIDR Range",
+			"Default":"172.46.0.0/23"
+        },
+        "AvailabilityZone1": {
+            "Type": "AWS::EC2::AvailabilityZone::Name",
+            "Description": "Please enter Subnet1 Availability Zone"
+        },
+        "AvailabilityZone2": {
+            "Type": "AWS::EC2::AvailabilityZone::Name",
+            "Description": "Please enter Subnet2 Availability Zone"
+        },
+		"Region": {
+            "Type": "String",
+            "Description": "Please enter Region Name",
+			"Default": "NorthVirginia",
+			"AllowedValues": [
+					"Ohio",
+					"NorthVirginia",
+					"NorthCalifornia",
+					"Oregon",
+					"CapeTown",
+					"HongKong",
+					"Mumbai",
+					"OsakaLocal",
+					"Seoul",
+					"Singapore",
+					"Sydney",
+					"Tokyo",
+					"Central",
+					"Frankfurt",
+					"Ireland",
+					"London",
+					"Milan",
+					"Paris",
+					"Stockholm",
+					"Bahrain",
+					"SaoPaulo"
+				 ]
+        },
+        "DHCPOptionsDomainName": {
+            "Type": "String",
+            "Default": "oshq.oneshield.com",
+            "Description": "Enter dhcp option-set domain Name"
+        },
+        "DHCPDomainNameServer": {
+            "Type": "String",
+            "Default": "172.18.0.221",
+            "Description": "Enter dhcp DNS IP Address"
+        },
+		"EmailAddress": {
+			"Type": "String",
+			"AllowedPattern": "^[\\x20-\\x45]?[\\w-\\+]+(\\.[\\w]+)*@[\\w-]+(\\.[\\w]+)*(\\.[a-z]{2,})$",
+			"ConstraintDescription": "Email address required.",
+			"Description": "Enter an email address you want to subscribe to the Amazon SNS topic that will send cloudwatch alert notifications"
+		},
+		"IsCloudTrailEnabled" : {
+            "Description" : "Specify if CloudTrail is enabled in the current region",
+            "Type"        : "String",
+            "Default"     : "Yes",
+            "AllowedValues" : [
+                "Yes",
+                "No"
+            ]
+        }
+	},
+	"Conditions"               : {
+        "CreateResources" : {
+            "Fn::Equals" : [
+                {
+                    "Ref" : "IsCloudTrailEnabled"
+                },
+                "Yes"
+            ]
+        }
+    },
+    "Resources": {
+        "VPC": {
+            "Type": "AWS::EC2::VPC",
+            "Properties": {
+                "CidrBlock": {
+                    "Ref": "VpcCIDR"
+                },
+                "EnableDnsSupport": true,
+                "EnableDnsHostnames": true,
+                "InstanceTenancy": "default",
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Join" : [ "_", [ {"Ref": "envPrefix"}, {"Ref": "Region"}, "VPC" ] ]
+                        }
+                    }
+                ]
+            }
+        },
+        "DhcpOptionSet": {
+            "Type": "AWS::EC2::DHCPOptions",
+            "Properties": {
+                "DomainName": {
+                    "Ref": "DHCPOptionsDomainName"
+                },
+                "DomainNameServers": [
+                    {
+                        "Ref": "DHCPDomainNameServer"
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Join" : [ "_", [ {"Ref": "envPrefix"}, {"Ref": "Region"}, "DHCPOS" ] ]
+                        }
+                    }
+                ]
+            }
+        },
+        "VPCDHCPOptionsAssociation": {
+            "Type": "AWS::EC2::VPCDHCPOptionsAssociation",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "DhcpOptionsId": {
+                    "Ref": "DhcpOptionSet"
+                }
+            }
+        },
+        "Subnet1": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "CidrBlock": { "Fn::Select" : [ 0, { "Fn::Cidr" : [{ "Fn::GetAtt" : [ "VPC", "CidrBlock" ]}, 8, 6 ]}]},
+                "AvailabilityZone": {
+                    "Ref": "AvailabilityZone1"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": { "Fn::Join" : [ ".", [ "Prod.DMZ1", {"Ref": "VPC"} ] ]}
+                    }
+                ]
+            }
+        },
+        "Subnet2": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "CidrBlock": { "Fn::Select" : [ 1, { "Fn::Cidr" : [{ "Fn::GetAtt" : [ "VPC", "CidrBlock" ]}, 8, 6 ]}]},
+                "AvailabilityZone": {
+                    "Ref": "AvailabilityZone2"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": { "Fn::Join" : [ ".", [ "Prod.DMZ2", {"Ref": "VPC"} ] ] }
+                    }
+                ]
+            }
+        },
+        "Subnet3": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "CidrBlock": { "Fn::Select" : [ 2, { "Fn::Cidr" : [{ "Fn::GetAtt" : [ "VPC", "CidrBlock" ]}, 8, 6 ]}]},
+                "AvailabilityZone": {
+                    "Ref": "AvailabilityZone1"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": { "Fn::Join" : [ ".", [ "Prod.Primary", {"Ref": "VPC"} ] ] } 
+                    }
+                ]
+            }
+        },
+        "Subnet4": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "CidrBlock": { "Fn::Select" : [ 3, { "Fn::Cidr" : [{ "Fn::GetAtt" : [ "VPC", "CidrBlock" ]}, 8, 6 ]}]},
+                "AvailabilityZone": {
+                    "Ref": "AvailabilityZone2"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": { "Fn::Join" : [ ".", [ "Prod.Secondary", {"Ref": "VPC"} ] ] }
+                    }
+                ]
+            }
+        },
+        "Subnet5": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "CidrBlock": { "Fn::Select" : [ 4, { "Fn::Cidr" : [{ "Fn::GetAtt" : [ "VPC", "CidrBlock" ]}, 8, 6 ]}]},
+                "AvailabilityZone": {
+                    "Ref": "AvailabilityZone1"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": { "Fn::Join" : [ ".", [ "NonProd.DMZ1", {"Ref": "VPC"} ] ] }
+                    }
+                ]
+            }
+        },
+        "Subnet6": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "CidrBlock": { "Fn::Select" : [ 5, { "Fn::Cidr" : [{ "Fn::GetAtt" : [ "VPC", "CidrBlock" ]}, 8, 6 ]}]},
+                "AvailabilityZone": {
+                    "Ref": "AvailabilityZone2"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": { "Fn::Join" : [ ".", [ "NonProd.DMZ2", {"Ref": "VPC"} ] ] }
+                    }
+                ]
+            }
+        },
+        "Subnet7": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "CidrBlock": { "Fn::Select" : [ 6, { "Fn::Cidr" : [{ "Fn::GetAtt" : [ "VPC", "CidrBlock" ]}, 8, 6 ]}]},
+                "AvailabilityZone": {
+                    "Ref": "AvailabilityZone1"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": { "Fn::Join" : [ ".", [ "NonProd.Primary", {"Ref": "VPC"} ] ] }
+                    }
+                ]
+            }
+        },
+        "Subnet8": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "CidrBlock": { "Fn::Select" : [ 7, { "Fn::Cidr" : [{ "Fn::GetAtt" : [ "VPC", "CidrBlock" ]}, 8, 6 ]}]},
+                "AvailabilityZone": {
+                    "Ref": "AvailabilityZone2"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": { "Fn::Join" : [ ".", [ "NonProd.Secondary", {"Ref": "VPC"} ] ] }
+                    }
+                ]
+            }
+        },
+        "RouteTable1": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Route_Prod_DMZ1"
+                    }
+                ]
+            }
+        },
+        "RouteTable2": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Route_Prod_DMZ2"
+                    }
+                ]
+            }
+        },
+        "RouteTable3": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Route_Prod_Primary"
+                    }
+                ]
+            }
+        },
+        "RouteTable4": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Route_Prod_Secondary"
+                    }
+                ]
+            }
+        },
+        "RouteTable5": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Route_NonProd_DMZ1"
+                    }
+                ]
+            }
+        },
+        "RouteTable6": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Route_NonProd_DMZ2"
+                    }
+                ]
+            }
+        },
+        "RouteTable7": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Route_NonProd_Primary"
+                    }
+                ]
+            }
+        },
+        "RouteTable8": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Route_NonProd_Secondary"
+                    }
+                ]
+            }
+        },
+        "Subnet1RouteTable1Association": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "Subnet1"
+                },
+                "RouteTableId": {
+                    "Ref": "RouteTable1"
+                }
+            }
+        },
+        "Subnet2RouteTable2Association": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "Subnet2"
+                },
+                "RouteTableId": {
+                    "Ref": "RouteTable2"
+                }
+            }
+        },
+        "Subnet3RouteTable3Association": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "Subnet3"
+                },
+                "RouteTableId": {
+                    "Ref": "RouteTable3"
+                }
+            }
+        },
+        "Subnet4RouteTable4Association": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "Subnet4"
+                },
+                "RouteTableId": {
+                    "Ref": "RouteTable4"
+                }
+            }
+        },
+        "Subnet5RouteTable5Association": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "Subnet5"
+                },
+                "RouteTableId": {
+                    "Ref": "RouteTable5"
+                }
+            }
+        },
+        "Subnet6RouteTable6Association": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "Subnet6"
+                },
+                "RouteTableId": {
+                    "Ref": "RouteTable6"
+                }
+            }
+        },
+        "Subnet7RouteTable7Association": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "Subnet7"
+                },
+                "RouteTableId": {
+                    "Ref": "RouteTable7"
+                }
+            }
+        },
+        "Subnet8RouteTable8Association": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "Subnet8"
+                },
+                "RouteTableId": {
+                    "Ref": "RouteTable8"
+                }
+            }
+        },
+        "InternetGateway": {
+            "Type": "AWS::EC2::InternetGateway",
+            "DependsOn": "VPC",
+            "Properties": {
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Join" : [ "_", [ {"Ref": "envPrefix"}, {"Ref": "Region"}, "IGW" ] ]
+                        }
+                    }
+                ]
+            }
+        },
+        "AttachGateway": {
+            "Type": "AWS::EC2::VPCGatewayAttachment",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "InternetGatewayId": {
+                    "Ref": "InternetGateway"
+                }
+            }
+        },
+        "PublicRoute1": {
+            "Type": "AWS::EC2::Route",
+            "DependsOn": "AttachGateway",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "RouteTable1"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "GatewayId": {
+                    "Ref": "InternetGateway"
+                }
+            }
+        },
+        "PublicRoute2": {
+            "Type": "AWS::EC2::Route",
+            "DependsOn": "AttachGateway",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "RouteTable2"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "GatewayId": {
+                    "Ref": "InternetGateway"
+                }
+            }
+        },
+        "PublicRoute5": {
+            "Type": "AWS::EC2::Route",
+            "DependsOn": "AttachGateway",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "RouteTable5"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "GatewayId": {
+                    "Ref": "InternetGateway"
+                }
+            }
+        },
+        "PublicRoute6": {
+            "Type": "AWS::EC2::Route",
+            "DependsOn": "AttachGateway",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "RouteTable6"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "GatewayId": {
+                    "Ref": "InternetGateway"
+                }
+            }
+        },
+        "NAT1": {
+            "Type": "AWS::EC2::NatGateway",
+            "Properties": {
+                "AllocationId": {
+                    "Fn::GetAtt": [
+                        "EIP1",
+                        "AllocationId"
+                    ]
+                },
+                "SubnetId": {
+                    "Ref": "Subnet1"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "NAT_GW_Prod_Primary"
+                    }
+                ]
+            }
+        },
+        "EIP1": {
+            "DependsOn": "AttachGateway",
+            "Type": "AWS::EC2::EIP",
+            "Properties": {
+                "Domain": "VPC",
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Prod_Primary_NAT_EIP"
+                    }
+                ]
+            }
+        },
+        "Route1": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "RouteTable3"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "NatGatewayId": {
+                    "Ref": "NAT1"
+                }
+            }
+        },
+        "NAT2": {
+            "Type": "AWS::EC2::NatGateway",
+            "Properties": {
+                "AllocationId": {
+                    "Fn::GetAtt": [
+                        "EIP2",
+                        "AllocationId"
+                    ]
+                },
+                "SubnetId": {
+                    "Ref": "Subnet2"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "NAT_GW_Prod_Secondary"
+                    }
+                ]
+            }
+        },
+        "EIP2": {
+            "DependsOn": "AttachGateway",
+            "Type": "AWS::EC2::EIP",
+            "Properties": {
+                "Domain": "VPC",
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Prod_Secondary_NAT_EIP"
+                    }
+                ]
+            }
+        },
+        "Route2": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "RouteTable4"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "NatGatewayId": {
+                    "Ref": "NAT2"
+                }
+            }
+        },
+        "NAT3": {
+            "Type": "AWS::EC2::NatGateway",
+            "Properties": {
+                "AllocationId": {
+                    "Fn::GetAtt": [
+                        "EIP3",
+                        "AllocationId"
+                    ]
+                },
+                "SubnetId": {
+                    "Ref": "Subnet5"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "NAT_GW_NonProd_Primary"
+                    }
+                ]
+            }
+        },
+        "EIP3": {
+            "DependsOn": "AttachGateway",
+            "Type": "AWS::EC2::EIP",
+            "Properties": {
+                "Domain": "VPC",
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "NonProd_Primary_NAT_EIP"
+                    }
+                ]
+            }
+        },
+        "Route3": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "RouteTable7"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "NatGatewayId": {
+                    "Ref": "NAT3"
+                }
+            }
+        },
+        "NAT4": {
+            "Type": "AWS::EC2::NatGateway",
+            "Properties": {
+                "AllocationId": {
+                    "Fn::GetAtt": [
+                        "EIP4",
+                        "AllocationId"
+                    ]
+                },
+                "SubnetId": {
+                    "Ref": "Subnet6"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "NAT_GW_NonProd_Secondary"
+                    }
+                ]
+            }
+        },
+        "EIP4": {
+            "DependsOn": "AttachGateway",
+            "Type": "AWS::EC2::EIP",
+            "Properties": {
+                "Domain": "VPC",
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "NonProd_Secondary_NAT_EIP"
+                    }
+                ]
+            }
+        },
+        "Route4": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "RouteTable8"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "NatGatewayId": {
+                    "Ref": "NAT4"
+                }
+            }
+        },
+        "CustomerGateway1": {
+            "Type": "AWS::EC2::CustomerGateway",
+            "Properties": {
+                "Type": "ipsec.1",
+                "BgpAsn": 65000,
+                "IpAddress": "66.203.76.216",
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Marl_Customer_Gateway"
+                    }
+                ]
+            }
+        },
+        "CustomerGateway2": {
+            "Type": "AWS::EC2::CustomerGateway",
+            "Properties": {
+                "Type": "ipsec.1",
+                "BgpAsn": 65000,
+                "IpAddress": "203.92.36.18",
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "India_Sec_Customer_Gateway"
+                    }
+                ]
+            }
+        },
+        "CustomerGateway3": {
+            "Type": "AWS::EC2::CustomerGateway",
+            "Properties": {
+                "Type": "ipsec.1",
+                "BgpAsn": 65000,
+                "IpAddress": "115.110.111.50",
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "India_Pri_Customer_Gateway"
+                    }
+                ]
+            }
+        },
+		"CustomerGateway4": {
+            "Type": "AWS::EC2::CustomerGateway",
+            "Properties": {
+                "Type": "ipsec.1",
+                "BgpAsn": 65000,
+                "IpAddress": "103.8.150.162",
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Goa_Customer_Gateway"
+                    }
+                ]
+            }
+        },
+        "VPNGateway": {
+            "Type": "AWS::EC2::VPNGateway",
+            "DependsOn": "VPC",
+            "Properties": {
+                "Type": "ipsec.1",
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Join" : [ "_", [ {"Ref": "envPrefix"}, {"Ref": "Region"}, "VGW" ] ]
+                        }
+                    }
+                ]
+            }
+        },
+        "AttachVpnGateway": {
+            "Type": "AWS::EC2::VPCGatewayAttachment",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "VpnGatewayId": {
+                    "Ref": "VPNGateway"
+                }
+            }
+        },
+        "VPNConnection1": {
+            "Type": "AWS::EC2::VPNConnection",
+            "Properties": {
+                "Type": "ipsec.1",
+                "StaticRoutesOnly": true,
+                "CustomerGatewayId": {
+                    "Ref": "CustomerGateway1"
+                },
+                "VpnGatewayId": {
+                    "Ref": "VPNGateway"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Join" : [ "_", [ {"Ref": "envPrefix"}, {"Ref": "Region"}, "VPN_MARL_5516" ] ]
+                        }
+                    }
+                ]
+            }
+        },
+        "VPNConnection2": {
+            "Type": "AWS::EC2::VPNConnection",
+            "Properties": {
+                "Type": "ipsec.1",
+                "StaticRoutesOnly": true,
+                "CustomerGatewayId": {
+                    "Ref": "CustomerGateway2"
+                },
+                "VpnGatewayId": {
+                    "Ref": "VPNGateway"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Join" : [ "_", [ {"Ref": "envPrefix"}, {"Ref": "Region"}, "VPN_INDIA_Sec" ] ]
+                        }
+                    }
+                ]
+            }
+        },
+        "VPNConnection3": {
+            "Type": "AWS::EC2::VPNConnection",
+            "Properties": {
+                "Type": "ipsec.1",
+                "StaticRoutesOnly": true,
+                "CustomerGatewayId": {
+                    "Ref": "CustomerGateway3"
+                },
+                "VpnGatewayId": {
+                    "Ref": "VPNGateway"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Join" : [ "_", [ {"Ref": "envPrefix"}, {"Ref": "Region"}, "VPN_INDIA_Pri" ] ]
+                        }
+                    }
+                ]
+            }
+        },
+		"VPNConnection4": {
+            "Type": "AWS::EC2::VPNConnection",
+            "Properties": {
+                "Type": "ipsec.1",
+                "StaticRoutesOnly": true,
+                "CustomerGatewayId": {
+                    "Ref": "CustomerGateway4"
+                },
+                "VpnGatewayId": {
+                    "Ref": "VPNGateway"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Join" : [ "_", [ {"Ref": "envPrefix"}, {"Ref": "Region"}, "VPN_GOA" ] ]
+                        }
+                    }
+                ]
+            }
+        },
+        "VPNConnectionRoute1": {
+            "Type": "AWS::EC2::VPNConnectionRoute",
+            "DependsOn": "VPNConnection1",
+            "Properties": {
+                "DestinationCidrBlock": "172.16.0.0/16",
+                "VpnConnectionId": {
+                    "Ref": "VPNConnection1"
+                }
+            }
+        },
+        "VPNConnectionRoute2": {
+            "Type": "AWS::EC2::VPNConnectionRoute",
+            "DependsOn": "VPNConnection1",
+            "Properties": {
+                "DestinationCidrBlock": "172.17.0.0/16",
+                "VpnConnectionId": {
+                    "Ref": "VPNConnection1"
+                }
+            }
+        },
+        "VPNConnectionRoute3": {
+            "Type": "AWS::EC2::VPNConnectionRoute",
+            "DependsOn": "VPNConnection1",
+            "Properties": {
+                "DestinationCidrBlock": "10.0.0.0/24",
+                "VpnConnectionId": {
+                    "Ref": "VPNConnection1"
+                }
+            }
+        },
+        "VPNConnectionRoute4": {
+            "Type": "AWS::EC2::VPNConnectionRoute",
+            "DependsOn": "VPNConnection2",
+            "Properties": {
+                "DestinationCidrBlock": "172.18.1.0/24",
+                "VpnConnectionId": {
+                    "Ref": "VPNConnection2"
+                }
+            }
+        },
+        "VPNConnectionRoute5": {
+            "Type": "AWS::EC2::VPNConnectionRoute",
+            "DependsOn": "VPNConnection2",
+            "Properties": {
+                "DestinationCidrBlock": "172.18.0.0/24",
+                "VpnConnectionId": {
+                    "Ref": "VPNConnection2"
+                }
+            }
+        },
+        "VPNConnectionRoute6": {
+            "Type": "AWS::EC2::VPNConnectionRoute",
+            "DependsOn": "VPNConnection2",
+            "Properties": {
+                "DestinationCidrBlock": "172.18.8.0/24",
+                "VpnConnectionId": {
+                    "Ref": "VPNConnection2"
+                }
+            }
+        },
+        "VPNConnectionRoute7": {
+            "Type": "AWS::EC2::VPNConnectionRoute",
+            "DependsOn": "VPNConnection3",
+            "Properties": {
+                "DestinationCidrBlock": "192.168.60.0/24",
+                "VpnConnectionId": {
+                    "Ref": "VPNConnection2"
+                }
+            }
+        },
+        "VPNConnectionRoute8": {
+            "Type": "AWS::EC2::VPNConnectionRoute",
+            "DependsOn": "VPNConnection3",
+            "Properties": {
+                "DestinationCidrBlock": "172.18.1.0/24",
+                "VpnConnectionId": {
+                    "Ref": "VPNConnection3"
+                }
+            }
+        },
+		"VPNConnectionRoute9": {
+            "Type": "AWS::EC2::VPNConnectionRoute",
+            "DependsOn": "VPNConnection3",
+            "Properties": {
+                "DestinationCidrBlock": "172.18.8.0/24",
+                "VpnConnectionId": {
+                    "Ref": "VPNConnection3"
+                }
+            }
+        },
+		"VPNConnectionRoute10": {
+            "Type": "AWS::EC2::VPNConnectionRoute",
+            "DependsOn": "VPNConnection3",
+            "Properties": {
+                "DestinationCidrBlock": "192.168.60.0/24",
+                "VpnConnectionId": {
+                    "Ref": "VPNConnection3"
+                }
+            }
+        },
+		"VPNConnectionRoute11": {
+            "Type": "AWS::EC2::VPNConnectionRoute",
+            "DependsOn": "VPNConnection3",
+            "Properties": {
+                "DestinationCidrBlock": "172.18.0.0/24",
+                "VpnConnectionId": {
+                    "Ref": "VPNConnection3"
+                }
+            }
+        },
+		"VPNConnectionRoute12": {
+            "Type": "AWS::EC2::VPNConnectionRoute",
+            "DependsOn": "VPNConnection4",
+            "Properties": {
+                "DestinationCidrBlock": "172.30.0.0/23",
+                "VpnConnectionId": {
+                    "Ref": "VPNConnection4"
+                }
+            }
+        },
+        "VPNGatewayRoutePropogation1": {
+            "Type": "AWS::EC2::VPNGatewayRoutePropagation",
+            "DependsOn": "AttachVpnGateway",
+            "Properties": {
+                "RouteTableIds": [
+                    {
+                        "Ref": "RouteTable1"
+                    },
+                    {
+                        "Ref": "RouteTable2"
+                    },
+                    {
+                        "Ref": "RouteTable3"
+                    },
+                    {
+                        "Ref": "RouteTable4"
+                    },
+                    {
+                        "Ref": "RouteTable5"
+                    },
+                    {
+                        "Ref": "RouteTable6"
+                    },
+                    {
+                        "Ref": "RouteTable7"
+                    },
+                    {
+                        "Ref": "RouteTable8"
+                    }
+                ],
+                "VpnGatewayId": {
+                    "Ref": "VPNGateway"
+                }
+            }
+        },
+		"nonproddbSubnetGroup": {
+			"Type": "AWS::RDS::DBSubnetGroup",
+			"Properties": {
+				"DBSubnetGroupName": { "Fn::Join" : [ "_", [ {"Ref": "envPrefix"}, {"Ref": "Region"}, "NONPROD_SUBNET_GROUP" ] ] },
+				"DBSubnetGroupDescription": { "Fn::Join" : [ "_", [ {"Ref": "envPrefix"}, {"Ref": "Region"}, "NONPROD_SUBNET_GROUP" ] ] },
+				"SubnetIds": [
+					{ 
+					"Ref":"Subnet7"  
+					},
+					{ 
+					"Ref":"Subnet8" 
+					}
+				]
+			}
+		},
+		"proddbSubnetGroup": {
+			"Type": "AWS::RDS::DBSubnetGroup",
+			"Properties": {
+				"DBSubnetGroupName": { "Fn::Join" : [ "_", [ {"Ref": "envPrefix"}, {"Ref": "Region"}, "PROD_SUBNET_GROUP" ] ] },
+				"DBSubnetGroupDescription": { "Fn::Join" : [ "_", [ {"Ref": "envPrefix"}, {"Ref": "Region"}, "PROD_SUBNET_GROUP" ] ] },
+				"SubnetIds": [
+					{ 
+					"Ref":"Subnet3"  
+					},
+					{ 
+					"Ref":"Subnet4" 
+					}
+				]
+			}
+		},
+		"SNSTopic": {
+            "Type": "AWS::SNS::Topic",
+			"Properties": {
+				"TopicName": { "Fn::Join" : [ "_", [ {"Ref": "envPrefix"}, {"Ref": "Region"}, "CloudWatch_Alert" ] ] }
+			}
+		},
+        "Subscription": {
+            "Type": "AWS::SNS::Subscription",
+            "Properties": {
+                "TopicArn": {
+                    "Ref": "SNSTopic"
+                },
+                "Endpoint": { "Ref": "EmailAddress" },
+                "Protocol": "email"
+            }
+        },
+		"WEBSG": {
+                "Type": "AWS::EC2::SecurityGroup",
+                "Properties": {
+                    "GroupName": "Non-Prod Security Group_WEB",
+                    "GroupDescription": "Non-Prod Security Group_WEB",
+                    "VpcId": {
+                        "Ref": "VPC"
+                    },
+                    "Tags": [
+                        {
+                            "Key": "Name",
+                            "Value": "Non-Prod Security Group_WEB"
+                        }
+                    ],
+                    "SecurityGroupIngress": [
+                        {
+                            "IpProtocol": "-1",
+                            "CidrIp": "10.0.0.118/32",
+                            "Description": "OSCMonitor02"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 80,
+                            "ToPort": 80,
+                            "Description": "For Web Connection"
+                        },                    
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "GOA CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 443,
+                            "ToPort": 443,
+                            "Description": "For Web Connection"
+                        },
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ],
+                    "SecurityGroupEgress": [
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 80,
+                            "ToPort": 80,
+                            "Description": "For Internet"
+                        },
+                       
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 25,
+                            "ToPort": 25,
+                            "Description": "SMTP to All"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 443,
+                            "ToPort": 443,
+                            "Description": "For Internet"
+                        },
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ]
+                }
+            },
+        "WEBSGSecurityInboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "WEBSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": {"Ref": "APPSG"},
+                "Description": "APP SG"
+            }
+        },
+        "WEBSGSecurityInboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "WEBSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "WEBSG" },
+                "Description": "WEB SG"
+                
+            }
+        },
+        "WEBSGSecurityInboundRules3": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "WEBSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "BISG" },
+                "Description": "BI SG"
+                
+            }
+        },
+        "WEBSGSecurityOutboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "WEBSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "WEBSG" },
+                "Description": "WEB SG"
+                
+            }
+        },
+        "WEBSGSecurityOutboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "WEBSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "APPSG" },
+                "Description": "APP SG"
+                
+            }
+        },
+        "WEBSGSecurityOutboundRules3": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "WEBSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "BISG" },
+                "Description": "BI SG"
+                
+            }
+        },
+
+        "APPSG": {
+                "Type": "AWS::EC2::SecurityGroup",
+                "Properties": {
+                    "GroupName": "Non-Prod Security Group_APP",
+                    "GroupDescription": "Non-Prod Security Group_APP",
+                    "VpcId": {
+                        "Ref": "VPC"
+                    },
+                    "Tags": [
+                        {
+                            "Key": "Name",
+                            "Value": "Non-Prod Security Group_APP"
+                        }
+                    ],
+
+                    "SecurityGroupIngress": [
+                        {
+                            "IpProtocol": "-1",
+                            "CidrIp": "10.0.0.118/32",
+                            "Description": "OSCMonitor02"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "GOA CIDR"
+                        },
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ],
+                    "SecurityGroupEgress": [
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 80,
+                            "ToPort": 80,
+                            "Description": "For Internet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "52.203.23.223/32",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "Files.oneshield.com"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "52.203.56.218/32",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "Files.oneshield.com"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.155/32",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "OSCDBATEST01 (For Reports)"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 25,
+                            "ToPort": 25,
+                            "Description": "SMTP to All"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 443,
+                            "ToPort": 443,
+                            "Description": "For Internet"
+                        },
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ]
+
+                }
+            },
+        "APPSGSecurityInboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": {"Ref": "APPSG"},
+                "Description": "APP SG"
+            }
+        },
+        "APPSGSecurityInboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "WEBSG" },
+                "Description": "WEB SG"
+                
+            }
+        },
+        "APPSGSecurityInboundRules3": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "BISG" },
+                "Description": "BI SG"
+                
+            }
+        },
+        "APPSGSecurityInboundRules4": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "DBSG" },
+                "Description": "DB SG"
+                
+            }
+        },
+        "APPSGSecurityInboundRules5": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "ActiveMQSG" },
+                "Description": "Active MQ SG"
+                
+            }
+        },
+        "APPSGSecurityInboundRules6": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "KEYMANSG" },
+                "Description": "KEYMAN SG"
+                
+            }
+        },
+        "APPSGSecurityInboundRules7": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "ActiveDirectorySG" },
+                "Description": "Active Directory SG"
+                
+            }
+        },
+
+        "APPSGSecurityOutboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "WEBSG" },
+                "Description": "WEB SG"
+                
+            }
+        },
+        "APPSGSecurityOutboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "APPSG" },
+                "Description": "APP SG"
+                
+            }
+        },
+        "APPSGSecurityOutboundRules3": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "BISG" },
+                "Description": "BI SG"
+                
+            }
+        },
+        "APPSGSecurityOutboundRules4": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "DBSG" },
+                "Description": "DB SG"
+                
+            }
+        },
+        "APPSGSecurityOutboundRules5": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "ActiveMQSG" },
+                "Description": "Active MQ SG"
+                
+            }
+        },
+        "APPSGSecurityOutboundRules6": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "KEYMANSG" },
+                "Description": "KEYMAN SG"
+                
+            }
+        },
+        "APPSGSecurityOutboundRules7": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "ActiveDirectorySG" },
+                "Description": "Active Directory SG"
+                
+            }
+        },
+
+        "ActiveMQSG": {
+                "Type": "AWS::EC2::SecurityGroup",
+                "Properties": {
+                    "GroupName": "Non-Prod Security Group_ActiveM",
+                    "GroupDescription": "Non-Prod Security Group_ActiveM",
+                    "VpcId": {
+                        "Ref": "VPC"
+                    },
+                    "Tags": [
+                        {
+                            "Key": "Name",
+                            "Value": "Non-Prod Security Group_ActiveMQ"
+                        }
+                    ],
+                    "SecurityGroupIngress": [
+                        {
+                            "IpProtocol": "-1",
+                            "CidrIp": "10.0.0.118/32",
+                            "Description": "OSCMonitor02"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 8161,
+                            "ToPort": 8161,
+                            "Description": "ActiveMQSG"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 8161,
+                            "ToPort": 8161,
+                            "Description": "ActiveMQSG"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 8161,
+                            "ToPort": 8161,
+                            "Description": "ActiveMQSG"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 8161,
+                            "ToPort": 8161,
+                            "Description": "ActiveMQSG"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 8161,
+                            "ToPort": 8161,
+                            "Description": "ActiveMQSG"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "GOA CIDR"
+                        },                     
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ],
+                    "SecurityGroupEgress": [
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 80,
+                            "ToPort": 80,
+                            "Description": "For Internet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "52.203.23.223/32",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "Files.oneshield.com"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "52.203.56.218/32",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "Files.oneshield.com"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 25,
+                            "ToPort": 25,
+                            "Description": "SMTP to All"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 443,
+                            "ToPort": 443,
+                            "Description": "For Internet"
+                        },
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ]
+                    
+
+                }
+            
+            },
+        "ActiveMQSGSecurityInboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "ActiveMQSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": {"Ref": "APPSG"},
+                "Description": "APPSG"
+            }
+        },
+        
+        "ActiveMQSGSecurityInboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "ActiveMQSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "ActiveMQSG" },
+                "Description": "ActiveMQSG"
+                
+            }
+        },
+     
+
+      
+        "ActiveMQSGSecurityOutboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "ActiveMQSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "APPSG" },
+                "Description": "APP SG"
+                
+            }
+        },
+        
+        "ActiveMQSGSecurityOutboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "ActiveMQSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "ActiveMQSG" },
+                "Description": "Active MQ SG"
+                
+            }
+        },
+        
+        "DBSG": {
+                "Type": "AWS::EC2::SecurityGroup",
+                "Properties": {
+                    "GroupName": "Non-Prod Security Group_DB",
+                    "GroupDescription": "Non-Prod Security Group_DB",
+                    "VpcId": {
+                        "Ref": "VPC"
+                    },
+                    "Tags": [
+                        {
+                            "Key": "Name",
+                            "Value": "Non-Prod Security Group_DB"
+                        }
+                    ],
+                    "SecurityGroupIngress": [
+                        {
+                            "IpProtocol": "-1",
+                            "CidrIp": "10.0.0.118/32",
+                            "Description": "OSCMonitor02"
+                        },
+                        
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 1521,
+                            "ToPort": 1521,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 1521,
+                            "ToPort": 1521,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 1521,
+                            "ToPort": 1521,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 1521,
+                            "ToPort": 1521,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 1521,
+                            "ToPort": 1521,
+                            "Description": "GOA CIDR"
+                        },
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ],
+                    "SecurityGroupEgress": [
+                        
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 25,
+                            "ToPort": 25,
+                            "Description": "SMTP to All"
+                        }
+                    ]
+                    
+
+                }
+            
+            },
+        "DBSGSecurityInboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "DBSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": {"Ref": "APPSG"},
+                "Description": "APP SG"
+            }
+        },
+     
+        "DBSGSecurityInboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "DBSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "BISG" },
+                "Description": "BI SG"
+                
+            }
+        },
+        "DBSGSecurityInboundRules3": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "DBSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "DBSG" },
+                "Description": "DB SG"
+                
+            }
+        },
+        "DBSGSecurityOutboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "DBSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "APPSG" },
+                "Description": "APP SG"
+                
+            }
+        },
+        "DBSGSecurityOutboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "DBSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "BISG" },
+                "Description": "BI SG"
+                
+            }
+        },
+        "DBSGSecurityOutboundRules3": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "DBSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "DBSG" },
+                "Description": "DB SG"
+                
+            }
+        },
+        "DBSGSecurityOutboundRules4": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "DBSG"
+                },
+                "IpProtocol": "tcp",
+                "FromPort": 8200,
+                "ToPort": 8200,
+                "SourceSecurityGroupId": { "Ref": "KEYMANSG" },
+                "Description": "KEYMAN SG"
+                
+            }
+        },
+           
+        "KEYMANSG": {
+                "Type": "AWS::EC2::SecurityGroup",
+                "Properties": {
+                    "GroupName": "Non-Prod Security Group_KEYMAN",
+                    "GroupDescription": "Non-Prod Security Group_KEYMAN",
+                    "VpcId": {
+                        "Ref": "VPC"
+                    },
+                    "Tags": [
+                        {
+                            "Key": "Name",
+                            "Value": "Non-Prod Security Group_KEYMAN"
+                        }
+                    ],
+                    "SecurityGroupIngress": [
+                        {
+                            "IpProtocol": "-1",
+                            "CidrIp": "10.0.0.118/32",
+                            "Description": "OSCMonitor02"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 8200,
+                            "ToPort": 8200,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 8200,
+                            "ToPort": 8200,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 8200,
+                            "ToPort": 8200,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 8200,
+                            "ToPort": 8200,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 8200,
+                            "ToPort": 8200,
+                            "Description": "GOA CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "GOA CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 8501,
+                            "ToPort": 8501,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 8501,
+                            "ToPort": 8501,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 8501,
+                            "ToPort": 8501,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 8501,
+                            "ToPort": 8501,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 8501,
+                            "ToPort": 8501,
+                            "Description": "GOA CIDR"
+                        }
+                    ],
+                    "SecurityGroupEgress": [
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 80,
+                            "ToPort": 80,
+                            "Description": "For Internet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 25,
+                            "ToPort": 25,
+                            "Description": "SMTP to All"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.9.41/32",
+                            "FromPort": 8200,
+                            "ToPort": 8200,
+                            "Description": "osckeymandev"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 443,
+                            "ToPort": 443,
+                            "Description": "For Internet"
+                        },
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ]
+
+                }
+            },
+        "KEYMANSGSecurityInboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "KEYMANSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": {"Ref": "APPSG"},
+                "Description": "APP SG"
+            }
+        },
+        "KEYMANSGSecurityInboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "KEYMANSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "DBSG" },
+                "Description": "DB SG"
+                
+            }
+        },
+        "KEYMANSGSecurityOutboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "KEYMANSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "APPSG" },
+                "Description": "APP SG"
+                
+            }
+        },
+        "KEYMANSGSecurityOutboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "KEYMANSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "DBSG" },
+                "Description": "DB SG"
+                
+            }
+        },
+        "KEYMANSGSecurityOutboundRules3": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "KEYMANSG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "KEYMANSG" },
+                "Description": "KEYMAN SG"
+                
+            }
+        },
+        "BISG": {
+                "Type": "AWS::EC2::SecurityGroup",
+                "Properties": {
+                    "GroupName": "Non-Prod Security Group_BI",
+                    "GroupDescription": "Non-Prod Security Group_BI",
+                    "VpcId": {
+                        "Ref": "VPC"
+                    },
+                    "Tags": [
+                        {
+                            "Key": "Name",
+                            "Value": "Non-Prod Security Group_BI"
+                        }
+                    ],
+                    "SecurityGroupIngress": [
+                        {
+                            "IpProtocol": "-1",
+                            "CidrIp": "10.0.0.118/32",
+                            "Description": "OSCMonitor02"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 8080,
+                            "ToPort": 8080,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 8080,
+                            "ToPort": 8080,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 8080,
+                            "ToPort": 8080,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 8080,
+                            "ToPort": 8080,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 8080,
+                            "ToPort": 8080,
+                            "Description": "GOA CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "GOA CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 8443,
+                            "ToPort": 8443,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 8443,
+                            "ToPort": 8443,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 8443,
+                            "ToPort": 8443,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 8443,
+                            "ToPort": 8443,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 8443,
+                            "ToPort": 8443,
+                            "Description": "GOA CIDR"
+                        },
+
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ],
+                    "SecurityGroupEgress": [
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 80,
+                            "ToPort": 80,
+                            "Description": "For Internet"
+                        },
+                        
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "52.203.23.223/32",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "Files.oneshield.com"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "52.203.56.218/32",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "Files.oneshield.com"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 25,
+                            "ToPort": 25,
+                            "Description": "SMTP to All"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 443,
+                            "ToPort": 443,
+                            "Description": "For Internet"
+                        },
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ]
+                }
+            },
+        "BISGSecurityInboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "BISG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": {"Ref": "APPSG"},
+                "Description": "APP SG"
+            }
+        },
+     
+        "BISGSecurityInboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "BISG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "BISG" },
+                "Description": "BI SG"
+                
+            }
+        },
+        "BISGSecurityInboundRules3": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "BISG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "DBSG" },
+                "Description": "DB SG"
+                
+            }
+        },
+        "BISGSecurityInboundRules4": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "BISG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "WEBSG" },
+                "Description": "WEB SG"   
+                
+            }
+        },
+        "BISGSecurityOutboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "BISG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "WEBSG" },
+                "Description": "WEB SG"
+                
+            }
+        },
+        "BISGSecurityOutboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "BISG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "APPSG" },
+                "Description": "APP SG"
+                
+            }
+        },
+        "BISGSecurityOutboundRules3": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "BISG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "BISG" },
+                "Description": "BI SG"
+                
+            }
+        },
+        "BISGSecurityOutboundRules4": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "BISG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "DBSG" },
+                "Description": "DB SG"
+                
+            }
+        },
+        "ActiveDirectorySG": {
+                "Type": "AWS::EC2::SecurityGroup",
+                "Properties": {
+                    "GroupName": "Non-Prod Security Group_Active Directory",
+                    "GroupDescription": "Non-Prod Security Group_Active Directory",
+                    "VpcId": {
+                        "Ref": "VPC"
+                    },
+                    "Tags": [
+                        {
+                            "Key": "Name",
+                            "Value": "Non-Prod Security Group_Active Directory"
+                        }
+                    ],
+                    "SecurityGroupIngress": [
+                        {
+                            "IpProtocol": "-1",
+                            "CidrIp": "172.16.9.56/32",
+                            "Description": "Desktop Central"
+                        },
+                        {
+                            "IpProtocol": "-1",
+                            "CidrIp": "10.0.0.118/32",
+                            "Description": "OSCMonitor02"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 445,
+                            "ToPort": 445,
+                            "Description": "AWSDC01 - SMB UDP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 464,
+                            "ToPort": 464,
+                            "Description": "AWSDC01 - KDC UDP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 464,
+                            "ToPort": 464,
+                            "Description": "AWSDC01 - KDC TCP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 389,
+                            "ToPort": 389,
+                            "Description": "AWSDC01 - LDAP UDP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 53,
+                            "ToPort": 53,
+                            "Description": "AWSDC01 - DNS UDP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 389,
+                            "ToPort": 389,
+                            "Description": "AWSDC01 - LDAP TCP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 123,
+                            "ToPort": 123,
+                            "Description": "AWSDC01 - NTP UDP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 445,
+                            "ToPort": 445,
+                            "Description": "AWSDC01 - SMB TCP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 3268,
+                            "ToPort": 3268,
+                            "Description": "idprovider=ad"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 88,
+                            "ToPort": 88,
+                            "Description": "AWSDC01 - Kerberos TCP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 53,
+                            "ToPort": 53,
+                            "Description": "AWSDC01 - DNS TCP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 88,
+                            "ToPort": 88,
+                            "Description": "AWSDC01 - Kerberos UDP"
+                        }
+                    ],
+                    "SecurityGroupEgress": [
+                        {
+                            "IpProtocol": "-1",
+                            "CidrIp": "172.16.9.56/32",
+                            "Description": "Desktop Central"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 445,
+                            "ToPort": 445,
+                            "Description": "AWSDC01 - SMB UDP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 464,
+                            "ToPort": 464,
+                            "Description": "AWSDC01 - KDC UDP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 464,
+                            "ToPort": 464,
+                            "Description": "AWSDC01 - KDC TCP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 389,
+                            "ToPort": 389,
+                            "Description": "AWSDC01 - LDAP UDP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 53,
+                            "ToPort": 53,
+                            "Description": "AWSDC01 - DNS UDP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 389,
+                            "ToPort": 389,
+                            "Description": "AWSDC01 - LDAP TCP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 123,
+                            "ToPort": 123,
+                            "Description": "AWSDC01 - NTP UDP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 445,
+                            "ToPort": 445,
+                            "Description": "AWSDC01 - SMB TCP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 3268,
+                            "ToPort": 3268,
+                            "Description": "idprovider=ad"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 88,
+                            "ToPort": 88,
+                            "Description": "AWSDC01 - Kerberos TCP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 53,
+                            "ToPort": 53,
+                            "Description": "AWSDC01 - DNS TCP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 88,
+                            "ToPort": 88,
+                            "Description": "AWSDC01 - Kerberos UDP"
+                        }
+                    ]
+                }
+            },
+        "ActiveDirectorySGSecurityInboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "ActiveDirectorySG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": {"Ref": "APPSG"},
+                "Description": "APP SG"
+            }
+        },
+        "ActiveDirectorySGSecurityOutboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "ActiveDirectorySG"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "APPSG" },
+                "Description": "APP SG"
+                
+            }
+        },
+
+
+
+
+        "WEBSGPROD": {
+                "Type": "AWS::EC2::SecurityGroup",
+                "Properties": {
+                    "GroupName": "Prod Security Group_WEB",
+                    "GroupDescription": "Prod Security Group_WEB",
+                    "VpcId": {
+                        "Ref": "VPC"
+                    },
+                    "Tags": [
+                        {
+                            "Key": "Name",
+                            "Value": "Prod Security Group_WEB"
+                        }
+                    ],
+                    "SecurityGroupIngress": [
+                        {
+                            "IpProtocol": "-1",
+                            "CidrIp": "10.0.0.118/32",
+                            "Description": "OSCMonitor02"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 80,
+                            "ToPort": 80,
+                            "Description": "For Web Connection"
+                        },                    
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "GOA CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 443,
+                            "ToPort": 443,
+                            "Description": "For Web Connection"
+                        },
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ],
+                    "SecurityGroupEgress": [
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 80,
+                            "ToPort": 80,
+                            "Description": "For Internet"
+                        },
+                       
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 25,
+                            "ToPort": 25,
+                            "Description": "SMTP to All"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 443,
+                            "ToPort": 443,
+                            "Description": "For Internet"
+                        },
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ]
+                }
+            },
+        "WEBSGPRODSecurityInboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "WEBSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": {"Ref": "APPSGPROD"},
+                "Description": "APP SG"
+            }
+        },
+        "WEBSGPRODSecurityInboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "WEBSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "WEBSGPROD" },
+                "Description": "WEB SG"
+                
+            }
+        },
+        "WEBSGPRODSecurityInboundRules3": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "WEBSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "BISGPROD" },
+                "Description": "BI SG"
+                
+            }
+        },
+        "WEBSGPRODSecurityOutboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "WEBSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "WEBSGPROD" },
+                "Description": "WEB SG"
+                
+            }
+        },
+        "WEBSGPRODSecurityOutboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "WEBSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "APPSGPROD" },
+                "Description": "APP SG"
+                
+            }
+        },
+        "WEBSGPRODSecurityOutboundRules3": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "WEBSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "BISGPROD" },
+                "Description": "BI SG"
+                
+            }
+        },
+
+        "APPSGPROD": {
+                "Type": "AWS::EC2::SecurityGroup",
+                "Properties": {
+                    "GroupName": "Prod Security Group_APP",
+                    "GroupDescription": "Prod Security Group_APP",
+                    "VpcId": {
+                        "Ref": "VPC"
+                    },
+                    "Tags": [
+                        {
+                            "Key": "Name",
+                            "Value": "Prod Security Group_APP"
+                        }
+                    ],
+
+                    "SecurityGroupIngress": [
+                        {
+                            "IpProtocol": "-1",
+                            "CidrIp": "10.0.0.118/32",
+                            "Description": "OSCMonitor02"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "GOA CIDR"
+                        },
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ],
+                    "SecurityGroupEgress": [
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 80,
+                            "ToPort": 80,
+                            "Description": "For Internet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "52.203.23.223/32",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "Files.oneshield.com"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "52.203.56.218/32",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "Files.oneshield.com"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.155/32",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "OSCDBATEST01 (For Reports)"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 25,
+                            "ToPort": 25,
+                            "Description": "SMTP to All"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 443,
+                            "ToPort": 443,
+                            "Description": "For Internet"
+                        },
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ]
+
+                }
+            },
+        "APPSGPRODSecurityInboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": {"Ref": "APPSGPROD"},
+                "Description": "APP SG"
+            }
+        },
+        "APPSGPRODSecurityInboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "WEBSGPROD" },
+                "Description": "WEB SG"
+                
+            }
+        },
+        "APPSGPRODSecurityInboundRules3": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "BISGPROD" },
+                "Description": "BI SG"
+                
+            }
+        },
+        "APPSGPRODSecurityInboundRules4": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "DBSGPROD" },
+                "Description": "DB SG"
+                
+            }
+        },
+        "APPSGPRODSecurityInboundRules5": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "ActiveMQSGPROD" },
+                "Description": "Active MQ SG"
+                
+            }
+        },
+        "APPSGPRODSecurityInboundRules6": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "KEYMANSGPROD" },
+                "Description": "KEYMAN SG"
+                
+            }
+        },
+        "APPSGPRODSecurityInboundRules7": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "ActiveDirectorySGPROD" },
+                "Description": "Active Directory SG"
+                
+            }
+        },
+
+        "APPSGPRODSecurityOutboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "WEBSGPROD" },
+                "Description": "WEB SG"
+                
+            }
+        },
+        "APPSGPRODSecurityOutboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "APPSGPROD" },
+                "Description": "APP SG"
+                
+            }
+        },
+        "APPSGPRODSecurityOutboundRules3": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "BISGPROD" },
+                "Description": "BI SG"
+                
+            }
+        },
+        "APPSGPRODSecurityOutboundRules4": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "DBSGPROD" },
+                "Description": "DB SG"
+                
+            }
+        },
+        "APPSGPRODSecurityOutboundRules5": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "ActiveMQSGPROD" },
+                "Description": "Active MQ SG"
+                
+            }
+        },
+        "APPSGPRODSecurityOutboundRules6": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "KEYMANSGPROD" },
+                "Description": "KEYMAN SG"
+                
+            }
+        },
+        "APPSGPRODSecurityOutboundRules7": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "APPSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "ActiveDirectorySGPROD" },
+                "Description": "Active Directory SG"
+                
+            }
+        },
+
+        "ActiveMQSGPROD": {
+                "Type": "AWS::EC2::SecurityGroup",
+                "Properties": {
+                    "GroupName": "Prod Security Group_ActiveM",
+                    "GroupDescription": "Prod Security Group_ActiveM",
+                    "VpcId": {
+                        "Ref": "VPC"
+                    },
+                    "Tags": [
+                        {
+                            "Key": "Name",
+                            "Value": "Prod Security Group_ActiveMQ"
+                        }
+                    ],
+                    "SecurityGroupIngress": [
+                        {
+                            "IpProtocol": "-1",
+                            "CidrIp": "10.0.0.118/32",
+                            "Description": "OSCMonitor02"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 8161,
+                            "ToPort": 8161,
+                            "Description": "ActiveMQSG"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 8161,
+                            "ToPort": 8161,
+                            "Description": "ActiveMQSG"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 8161,
+                            "ToPort": 8161,
+                            "Description": "ActiveMQSG"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 8161,
+                            "ToPort": 8161,
+                            "Description": "ActiveMQSG"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 8161,
+                            "ToPort": 8161,
+                            "Description": "ActiveMQSG"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "GOA CIDR"
+                        },                     
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ],
+                    "SecurityGroupEgress": [
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 80,
+                            "ToPort": 80,
+                            "Description": "For Internet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "52.203.23.223/32",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "Files.oneshield.com"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "52.203.56.218/32",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "Files.oneshield.com"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 25,
+                            "ToPort": 25,
+                            "Description": "SMTP to All"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 443,
+                            "ToPort": 443,
+                            "Description": "For Internet"
+                        },
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ]
+                    
+
+                }
+            
+            },
+        "ActiveMQSGPRODSecurityInboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "ActiveMQSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": {"Ref": "APPSGPROD"},
+                "Description": "APPSG"
+            }
+        },
+        
+        "ActiveMQSGPRODSecurityInboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "ActiveMQSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "ActiveMQSGPROD" },
+                "Description": "ActiveMQSG"
+                
+            }
+        },
+     
+
+      
+        "ActiveMQSGPRODSecurityOutboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "ActiveMQSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "APPSGPROD" },
+                "Description": "APP SG"
+                
+            }
+        },
+        
+        "ActiveMQSGPRODSecurityOutboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "ActiveMQSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "ActiveMQSGPROD" },
+                "Description": "Active MQ SG"
+                
+            }
+        },
+        
+        "DBSGPROD": {
+                "Type": "AWS::EC2::SecurityGroup",
+                "Properties": {
+                    "GroupName": "Prod Security Group_DB",
+                    "GroupDescription": "Prod Security Group_DB",
+                    "VpcId": {
+                        "Ref": "VPC"
+                    },
+                    "Tags": [
+                        {
+                            "Key": "Name",
+                            "Value": "Prod Security Group_DB"
+                        }
+                    ],
+                    "SecurityGroupIngress": [
+                        {
+                            "IpProtocol": "-1",
+                            "CidrIp": "10.0.0.118/32",
+                            "Description": "OSCMonitor02"
+                        },
+                        
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 1521,
+                            "ToPort": 1521,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 1521,
+                            "ToPort": 1521,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 1521,
+                            "ToPort": 1521,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 1521,
+                            "ToPort": 1521,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 1521,
+                            "ToPort": 1521,
+                            "Description": "GOA CIDR"
+                        },
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ],
+                    "SecurityGroupEgress": [
+                        
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 25,
+                            "ToPort": 25,
+                            "Description": "SMTP to All"
+                        }
+                    ]
+                    
+
+                }
+            
+            },
+        "DBSGPRODSecurityInboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "DBSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": {"Ref": "APPSGPROD"},
+                "Description": "APP SG"
+            }
+        },
+     
+        "DBSGPRODSecurityInboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "DBSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "BISGPROD" },
+                "Description": "BI SG"
+                
+            }
+        },
+        "DBSGPRODSecurityInboundRules3": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "DBSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "DBSGPROD" },
+                "Description": "DB SG"
+                
+            }
+        },
+        "DBSGPRODSecurityOutboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "DBSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "APPSGPROD" },
+                "Description": "APP SG"
+                
+            }
+        },
+        "DBSGPRODSecurityOutboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "DBSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "BISGPROD" },
+                "Description": "BI SG"
+                
+            }
+        },
+		
+        "DBSGPRODSecurityOutboundRules3": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "DBSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "DBSGPROD" },
+                "Description": "DB SG"
+                
+            }
+        },
+        "DBSGPRODSecurityOutboundRules4": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "DBSGPROD"
+                },
+                "IpProtocol": "tcp",
+                "FromPort": 8200,
+                "ToPort": 8200,
+                "SourceSecurityGroupId": { "Ref": "KEYMANSGPROD" },
+                "Description": "KEYMAN SG"
+                
+            }
+        },
+           
+        "KEYMANSGPROD": {
+                "Type": "AWS::EC2::SecurityGroup",
+                "Properties": {
+                    "GroupName": "Prod Security Group_KEYMAN",
+                    "GroupDescription": "Prod Security Group_KEYMAN",
+                    "VpcId": {
+                        "Ref": "VPC"
+                    },
+                    "Tags": [
+                        {
+                            "Key": "Name",
+                            "Value": "Prod Security Group_KEYMAN"
+                        }
+                    ],
+                    "SecurityGroupIngress": [
+                        {
+                            "IpProtocol": "-1",
+                            "CidrIp": "10.0.0.118/32",
+                            "Description": "OSCMonitor02"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 8200,
+                            "ToPort": 8200,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 8200,
+                            "ToPort": 8200,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 8200,
+                            "ToPort": 8200,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 8200,
+                            "ToPort": 8200,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 8200,
+                            "ToPort": 8200,
+                            "Description": "GOA CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "GOA CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 8501,
+                            "ToPort": 8501,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 8501,
+                            "ToPort": 8501,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 8501,
+                            "ToPort": 8501,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 8501,
+                            "ToPort": 8501,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 8501,
+                            "ToPort": 8501,
+                            "Description": "GOA CIDR"
+                        }
+                    ],
+                    "SecurityGroupEgress": [
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 80,
+                            "ToPort": 80,
+                            "Description": "For Internet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 25,
+                            "ToPort": 25,
+                            "Description": "SMTP to All"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.9.41/32",
+                            "FromPort": 8200,
+                            "ToPort": 8200,
+                            "Description": "osckeymandev"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 443,
+                            "ToPort": 443,
+                            "Description": "For Internet"
+                        },
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ]
+
+                }
+            },
+        "KEYMANSGPRODSecurityInboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "KEYMANSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": {"Ref": "APPSGPROD"},
+                "Description": "APP SG"
+            }
+        },
+        "KEYMANSGPRODSecurityInboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "KEYMANSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "DBSGPROD" },
+                "Description": "DB SG"
+                
+            }
+        },
+        "KEYMANSGPRODSecurityOutboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "KEYMANSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "APPSGPROD" },
+                "Description": "APP SG"
+                
+            }
+        },
+        "KEYMANSGPRODSecurityOutboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "KEYMANSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "DBSGPROD" },
+                "Description": "DB SG"
+                
+            }
+        },
+        "KEYMANSGPRODSecurityOutboundRules3": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "KEYMANSGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "KEYMANSGPROD" },
+                "Description": "KEYMAN SG"
+                
+            }
+        },
+        "BISGPROD": {
+                "Type": "AWS::EC2::SecurityGroup",
+                "Properties": {
+                    "GroupName": "Prod Security Group_BI",
+                    "GroupDescription": "Prod Security Group_BI",
+                    "VpcId": {
+                        "Ref": "VPC"
+                    },
+                    "Tags": [
+                        {
+                            "Key": "Name",
+                            "Value": "Prod Security Group_BI"
+                        }
+                    ],
+                    "SecurityGroupIngress": [
+                        {
+                            "IpProtocol": "-1",
+                            "CidrIp": "10.0.0.118/32",
+                            "Description": "OSCMonitor02"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 8080,
+                            "ToPort": 8080,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 8080,
+                            "ToPort": 8080,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 8080,
+                            "ToPort": 8080,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 8080,
+                            "ToPort": 8080,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 8080,
+                            "ToPort": 8080,
+                            "Description": "GOA CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "GOA CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "10.0.0.0/24",
+                            "FromPort": 8443,
+                            "ToPort": 8443,
+                            "Description": "USA CIDR 1"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.16.0.0/16",
+                            "FromPort": 8443,
+                            "ToPort": 8443,
+                            "Description": "USA CIDR 2"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.18.0.0/16",
+                            "FromPort": 8443,
+                            "ToPort": 8443,
+                            "Description": "India CIDR"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "192.168.60.0/24",
+                            "FromPort": 8443,
+                            "ToPort": 8443,
+                            "Description": "India VPN Subnet"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.30.0.0/23",
+                            "FromPort": 8443,
+                            "ToPort": 8443,
+                            "Description": "GOA CIDR"
+                        },
+
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ],
+                    "SecurityGroupEgress": [
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 80,
+                            "ToPort": 80,
+                            "Description": "For Internet"
+                        },
+                        
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "52.203.23.223/32",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "Files.oneshield.com"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "52.203.56.218/32",
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "Description": "Files.oneshield.com"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 25,
+                            "ToPort": 25,
+                            "Description": "SMTP to All"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": 443,
+                            "ToPort": 443,
+                            "Description": "For Internet"
+                        },
+                        {
+                            "IpProtocol": "icmp",
+                            "CidrIp": "0.0.0.0/0",
+                            "FromPort": -1,
+                            "ToPort": -1,
+                            "Description": "ICMP to All"
+                        }
+                    ]
+                }
+            },
+        "BISGPRODSecurityInboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "BISGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": {"Ref": "APPSGPROD"},
+                "Description": "APP SG"
+            }
+        },
+     
+        "BISGPRODSecurityInboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "BISGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "BISGPROD" },
+                "Description": "BI SG"
+                
+            }
+        },
+        "BISGPRODSecurityInboundRules3": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "BISGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "DBSGPROD" },
+                "Description": "DB SG"
+                
+            }
+        },
+        "BISGPRODSecurityInboundRules4": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "BISGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "WEBSGPROD" },
+                "Description": "WEB SG"   
+                
+            }
+        },
+        "BISGPRODSecurityOutboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "BISGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "WEBSGPROD" },
+                "Description": "WEB SG"
+                
+            }
+        },
+        "BISGPRODSecurityOutboundRules2": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "BISGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "APPSGPROD" },
+                "Description": "APP SG"
+                
+            }
+        },
+        "BISGPRODSecurityOutboundRules3": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "BISGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "BISGPROD" },
+                "Description": "BI SG"
+                
+            }
+        },
+        "BISGPRODSecurityOutboundRules4": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "BISGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "DBSGPROD" },
+                "Description": "DB SG"
+                
+            }
+        },
+        "ActiveDirectorySGPROD": {
+                "Type": "AWS::EC2::SecurityGroup",
+                "Properties": {
+                    "GroupName": "Prod Security Group_Active Directory",
+                    "GroupDescription": "Prod Security Group_Active Directory",
+                    "VpcId": {
+                        "Ref": "VPC"
+                    },
+                    "Tags": [
+                        {
+                            "Key": "Name",
+                            "Value": "Prod Security Group_Active Directory"
+                        }
+                    ],
+                    "SecurityGroupIngress": [
+                        {
+                            "IpProtocol": "-1",
+                            "CidrIp": "172.16.9.56/32",
+                            "Description": "Desktop Central"
+                        },
+                        {
+                            "IpProtocol": "-1",
+                            "CidrIp": "10.0.0.118/32",
+                            "Description": "OSCMonitor02"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 445,
+                            "ToPort": 445,
+                            "Description": "AWSDC01 - SMB UDP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 464,
+                            "ToPort": 464,
+                            "Description": "AWSDC01 - KDC UDP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 464,
+                            "ToPort": 464,
+                            "Description": "AWSDC01 - KDC TCP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 389,
+                            "ToPort": 389,
+                            "Description": "AWSDC01 - LDAP UDP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 53,
+                            "ToPort": 53,
+                            "Description": "AWSDC01 - DNS UDP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 389,
+                            "ToPort": 389,
+                            "Description": "AWSDC01 - LDAP TCP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 123,
+                            "ToPort": 123,
+                            "Description": "AWSDC01 - NTP UDP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 445,
+                            "ToPort": 445,
+                            "Description": "AWSDC01 - SMB TCP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 3268,
+                            "ToPort": 3268,
+                            "Description": "idprovider=ad"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 88,
+                            "ToPort": 88,
+                            "Description": "AWSDC01 - Kerberos TCP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 53,
+                            "ToPort": 53,
+                            "Description": "AWSDC01 - DNS TCP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 88,
+                            "ToPort": 88,
+                            "Description": "AWSDC01 - Kerberos UDP"
+                        }
+                    ],
+                    "SecurityGroupEgress": [
+                        {
+                            "IpProtocol": "-1",
+                            "CidrIp": "172.16.9.56/32",
+                            "Description": "Desktop Central"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 445,
+                            "ToPort": 445,
+                            "Description": "AWSDC01 - SMB UDP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 464,
+                            "ToPort": 464,
+                            "Description": "AWSDC01 - KDC UDP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 464,
+                            "ToPort": 464,
+                            "Description": "AWSDC01 - KDC TCP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 389,
+                            "ToPort": 389,
+                            "Description": "AWSDC01 - LDAP UDP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 53,
+                            "ToPort": 53,
+                            "Description": "AWSDC01 - DNS UDP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 389,
+                            "ToPort": 389,
+                            "Description": "AWSDC01 - LDAP TCP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 123,
+                            "ToPort": 123,
+                            "Description": "AWSDC01 - NTP UDP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 445,
+                            "ToPort": 445,
+                            "Description": "AWSDC01 - SMB TCP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 3268,
+                            "ToPort": 3268,
+                            "Description": "idprovider=ad"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 88,
+                            "ToPort": 88,
+                            "Description": "AWSDC01 - Kerberos TCP"
+                        },
+                        {
+                            "IpProtocol": "tcp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 53,
+                            "ToPort": 53,
+                            "Description": "AWSDC01 - DNS TCP"
+                        },
+                        {
+                            "IpProtocol": "udp",
+                            "CidrIp": "172.20.78.169/32",
+                            "FromPort": 88,
+                            "ToPort": 88,
+                            "Description": "AWSDC01 - Kerberos UDP"
+                        }
+                    ]
+                }
+            },
+        "ActiveDirectorySGPRODSecurityInboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "ActiveDirectorySGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": {"Ref": "APPSGPROD"},
+                "Description": "APP SG"
+            }
+        },
+        "ActiveDirectorySGPRODSecurityOutboundRules1": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "ActiveDirectorySGPROD"
+                },
+                "IpProtocol": "-1",
+                "SourceSecurityGroupId": { "Ref": "APPSGPROD" },
+                "Description": "APP SG"
+                
+            }
+        },
+		"EC2EventRule" : {
+            "Type" : "AWS::Events::Rule",
+            "Condition" : "CreateResources",
+            "Properties" : {
+                "Description" : "Trigger a Lambda function anytime a new EC2 resource is created (EC2 instance, EBS volume, EBS Snapshot or AMI)",
+                "EventPattern" : {
+                    "detail-type" : [
+                        "AWS API Call via CloudTrail"
+                    ],
+                    "detail"      : {
+                        "eventSource" : [
+                            "ec2.amazonaws.com"
+                        ],
+                        "eventName"   : [
+                            "CreateVolume",
+                            "RunInstances",
+                            "CreateImage",
+                            "CreateSnapshot",
+							"StartInstances",
+							"StopInstances"
+                        ]
+                    }
+                },
+                "Name"         : "New-EC2Resource-Event",
+                "State"        : "ENABLED",
+                "Targets"      : [
+                    {
+                        "Arn" : {
+                            "Ref" : "ProductionAlias"
+                        },
+                        "Id"  : "Production"
+                    }
+                ]
+            }
+        },
+        "CFAutoTag"    : {
+            "Type" : "AWS::Lambda::Function",
+            "Condition" : "CreateResources",
+            "Properties" : {
+                "Code" : {
+                    "ZipFile" : "from __future__ import print_function\nfrom datetime import datetime\nfrom dateutil import tz\nimport json\nimport boto3\nimport logging\nimport time\nimport datetime\n\n\nlogger = logging.getLogger()\nlogger.setLevel(logging.INFO)\n\n\n\n\ndef lambda_handler(event, context):\n\n    logger.info('Event: ' + str(event))\n    print(event)\n\n    ids = []\n\n    try:\n        region = event['region']\n        detail = event['detail']\n        eventtime = detail['eventTime']\n        eventname = detail['eventName']\n        arn = detail['userIdentity']['arn']\n        principal = detail['userIdentity']['principalId']\n        userType = detail['userIdentity']['type']\n\n        creation_time = datetime.datetime.strptime(eventtime, '%Y-%m-%dT%H:%M:%SZ').strftime('%d-%m-%Y %H:%M:%S')\n\n        print(creation_time)\n\n        if userType == 'IAMUser':\n            user = detail['userIdentity']['userName']\n\n        else:\n            user = principal.split(':')[1]\n\n\n        logger.info('principalId: ' + str(principal))\n        logger.info('region: ' + str(region))\n        logger.info('eventName: ' + str(eventname))\n        logger.info('creation_time: ' + str(creation_time))\n        logger.info('detail: ' + str(detail))\n\n        if not detail['responseElements']:\n            logger.warning('Not responseElements found')\n            if detail['errorCode']:\n                logger.error('errorCode: ' + detail['errorCode'])\n            if detail['errorMessage']:\n                logger.error('errorMessage: ' + detail['errorMessage'])\n            return False\n\n        ec2 = boto3.resource('ec2')\n\n        if eventname == 'CreateVolume':\n            ids.append(detail['responseElements']['volumeId'])\n            logger.info(ids)\n\n        elif eventname == 'RunInstances':\n            items = detail['responseElements']['instancesSet']['items']\n            for item in items:\n                ids.append(item['instanceId'])\n            logger.info(ids)\n            logger.info('number of instances: ' + str(len(ids)))\n\n            base = ec2.instances.filter(InstanceIds=ids)\n\n            #loop through the instances\n            for instance in base:\n                for vol in instance.volumes.all():\n                    ids.append(vol.id)\n                for eni in instance.network_interfaces:\n                    ids.append(eni.id)\n\n        elif eventname == 'CreateImage':\n            ids.append(detail['responseElements']['imageId'])\n            logger.info(ids)\n\n        elif eventname == 'CreateSnapshot':\n            ids.append(detail['responseElements']['snapshotId'])\n            logger.info(ids)\n\n        elif eventname == 'StartInstances':\n            items = detail['responseElements']['instancesSet']['items']\n            for item in items:\n                ids.append(item['instanceId'])\n            for resourceid in ids:\n                print('Tagging resource ' + resourceid)\n                ec2.create_tags(Resources=ids, Tags=[{'Key': 'LastStartTime', 'Value': creation_time}])\n            ids = []\n\n        elif eventname == 'StopInstances':\n            items = detail['responseElements']['instancesSet']['items']\n            for item in items:\n                ids.append(item['instanceId'])\n            for resourceid in ids:\n                print('Tagging resource ' + resourceid)\n                ec2.create_tags(Resources=ids, Tags=[{'Key': 'LastStopTime', 'Value': creation_time}])\n            ids = []\n\n        else:\n            logger.warning('Not supported action')\n\n        if ids:\n            for resourceid in ids:\n                print('Tagging resource ' + resourceid)\n            ec2.create_tags(Resources=ids, Tags=[{'Key': 'CreatedByUser', 'Value': user}, {'Key': 'CreationTime', 'Value': creation_time}, {'Key': 'LastStartTime', 'Value': creation_time}])\n\n        logger.info(' Remaining time (ms): ' + str(context.get_remaining_time_in_millis()) + '')\n        return True\n    except Exception as e:\n        logger.error('Something went wrong: ' + str(e))\n        return False\n"
+                },
+                "Description" : "This function tags EC2 Resources in response to Cloudwatch Events.",
+                "Handler"     : "index.lambda_handler",
+                "Role"        : {
+                    "Fn::GetAtt" : [
+                        "LambdaAutoTagRole",
+                        "Arn"
+                    ]
+                },
+                "Runtime"     : "python2.7",
+                "Timeout"     : "60"
+            }
+        },
+		"StableVersion" : {
+            "Type" : "AWS::Lambda::Version",
+            "Condition" : "CreateResources",
+            "Properties" : {
+                "FunctionName" : {
+                    "Ref" : "CFAutoTag"
+                },
+                "Description"  : "Stable version"
+            }
+        },
+        "ProductionAlias" : {
+            "Type" : "AWS::Lambda::Alias",
+            "Condition" : "CreateResources",
+            "Properties" : {
+                "FunctionName" : {
+                    "Ref" : "CFAutoTag"
+                },
+                "FunctionVersion" : {
+                    "Fn::GetAtt" : [
+                        "StableVersion",
+                        "Version"
+                    ]
+                },
+                "Name": "PROD"
+            }
+        },
+        "PermissionForEventsToInvokeLambda" : {
+            "Type" : "AWS::Lambda::Permission",
+            "Properties" : {
+                "FunctionName" : {
+                    "Ref" : "ProductionAlias"
+                },
+                "Action"       : "lambda:InvokeFunction",
+                "Principal"    : "events.amazonaws.com",
+                "SourceArn"    : {
+                    "Fn::GetAtt" : [
+                        "EC2EventRule",
+                        "Arn"
+                    ]
+                }
+            }
+        },
+        "LambdaAutoTagRole"                 : {
+            "Type" : "AWS::IAM::Role",
+            "Condition" : "CreateResources",
+            "Properties" : {
+                "AssumeRolePolicyDocument" : {
+                    "Version" : "2012-10-17",
+                    "Statement" : [
+                        {
+                            "Effect" : "Allow",
+                            "Principal" : {
+                                "Service" : [
+                                    "lambda.amazonaws.com"
+                                ]
+                            },
+                            "Action"    : [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "Policies"                 : [
+                    {
+                        "PolicyName" : "LambdaGetLatestWindowsAmiIdPolicy",
+                        "PolicyDocument" : {
+                            "Version" : "2012-10-17",
+                            "Statement" : [
+                                {
+                                    "Sid" : "Stmt1458923097000",
+                                    "Effect" : "Allow",
+                                    "Action" : [
+                                        "cloudtrail:LookupEvents"
+                                    ],
+                                    "Resource" : [
+                                        "*"
+                                    ]
+                                },
+                                {
+                                    "Sid" : "Stmt1458923121000",
+                                    "Effect" : "Allow",
+                                    "Action" : [
+                                        "ec2:CreateTags",
+                                        "ec2:Describe*",
+                                        "logs:CreateLogGroup",
+                                        "logs:CreateLogStream",
+                                        "logs:PutLogEvents"
+                                    ],
+                                    "Resource" : [
+                                        "*"
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+	},
+	"Outputs": {
+		"VpcId": {
+			"Value": {
+				"Ref": "VPC"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-VPCID"
+				}
+			}
+		},
+		"Subnet1": {
+			"Value": {
+				"Ref": "Subnet1"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-Subnet1"
+				}
+			}
+		},
+		"Subnet2": {
+			"Value": {
+				"Ref": "Subnet2"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-Subnet2"
+				}
+			}
+		},
+		"Subnet3": {
+			"Value": {
+				"Ref": "Subnet3"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-Subnet3"
+				}
+			}
+		},
+		"Subnet4": {
+			"Value": {
+				"Ref": "Subnet4"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-Subnet4"
+				}
+			}
+		},
+		"Subnet5": {
+			"Value": {
+				"Ref": "Subnet5"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-Subnet5"
+				}
+			}
+		},
+		"Subnet6": {
+			"Value": {
+				"Ref": "Subnet6"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-Subnet6"
+				}
+			}
+		},
+		"Subnet7": {
+			"Value": {
+				"Ref": "Subnet7"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-Subnet7"
+				}
+			}
+		},
+		"Subnet8": {
+			"Value": {
+				"Ref": "Subnet8"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-Subnet8"
+				}
+			}
+		},
+		"nonproddbSubnetGroup": {
+			"Value": {
+				"Ref": "nonproddbSubnetGroup"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-nonproddbSubnetGroup"
+				}
+			}
+		},
+		"proddbSubnetGroup": {
+			"Value": {
+				"Ref": "proddbSubnetGroup"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-proddbSubnetGroup"
+				}
+			}
+		},
+		"SNSTopicArn": {
+			"Description": "Arn of SNS topic",
+            "Value": { "Ref": "SNSTopic" },
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-SNSTopicArn"
+				}
+			}
+        }
+	}
+}

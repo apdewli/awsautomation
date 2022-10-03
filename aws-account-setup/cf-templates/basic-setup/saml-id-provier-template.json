@@ -1,0 +1,146 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "SAML Provider Stack",
+    "Parameters": {
+        "FederationName": {
+            "Type": "String",
+            "Description": "Name of SAML provider being created in IAM"
+        },
+        "FederationMetadaBucket": {
+            "Type": "String",
+            "Description": "Bucket containing federation metadata"
+        },
+        "FederationFile": {
+            "Type": "String",
+            "Description": "Name of file containing the federation metadata"
+        }
+    },
+    "Resources": {
+        "SAMLProviderCustomResourceLambdaExecutionRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "lambda.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "root",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "logs:CreateLogGroup",
+                                        "logs:CreateLogStream",
+                                        "logs:PutLogEvents"
+                                    ],
+                                    "Resource": "arn:aws:logs:*:*:log-group:/aws/lambda/*-SAMLProviderCustomResourceLambda-*:*"
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "iam:CreateSAMLProvider",
+                                        "iam:DeleteSAMLProvider"
+                                    ],
+                                    "Resource": {
+                                        "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:saml-provider/${FederationName}"
+                                    }
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "iam:ListSAMLProviders"
+                                    ],
+                                    "Resource": "*"
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "s3:GetObject"
+                                    ],
+                                    "Resource": {
+                                        "Fn::Sub": "arn:aws:s3:::${FederationMetadaBucket}/*"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "CustomResource": {
+            "Type": "Custom::CustomResource",
+            "DependsOn": [
+                "SAMLProviderCustomResourceLambda",
+                "SAMLProviderCustomResourceLambdaExecutionRole"
+            ],
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "SAMLProviderCustomResourceLambda",
+                        "Arn"
+                    ]
+                }
+            }
+        },
+        "SAMLProviderCustomResourceLambda": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+			    "FunctionName": "SAMLIdProviderCreationFunction",
+                "Handler": "index.lambda_handler",
+                "Role": {
+                    "Fn::GetAtt": [
+                        "SAMLProviderCustomResourceLambdaExecutionRole",
+                        "Arn"
+                    ]
+                },
+                "Runtime": "python3.7",
+                "Timeout": 300,
+                "Environment": {
+                    "Variables": {
+                        "FEDERATION_NAME": {
+                            "Ref": "FederationName"
+                        },
+                        "FEDERATION_BUCKET": {
+                            "Ref": "FederationMetadaBucket"
+                        },
+                        "FEDERATION_FILE": {
+                            "Ref": "FederationFile"
+                        }
+                    }
+                },
+                "Code": {
+                    "ZipFile": "import boto3, json, os, urllib.request, ssl, time, traceback\n\n\nBUCKET = os.getenv('FEDERATION_BUCKET')\nFILE = os.getenv('FEDERATION_FILE')\nNAME = os.getenv('FEDERATION_NAME')\n\n\nclass SAMLProvider(object):\n    def __init__(self):\n        self.iam_client = boto3.client('iam')\n        self.existing_providers = []\n        self._list_saml_providers()\n        self.s3 = boto3.resource('s3')\n\n    def get_federation_metadata(self):\n        try:\n            self.s3.Bucket(BUCKET).download_file(FILE, '/tmp/' + FILE)\n            handle = open('/tmp/' + FILE)\n            data = handle.read()\n            handle.close()\n            os.remove('/tmp/' + FILE)\n            return data\n        except:\n            traceback.print_exc()\n            raise\n\n    def _list_saml_providers(self):\n        providers = []\n        response = self.iam_client.list_saml_providers()\n        for provider in response['SAMLProviderList']:\n            self.existing_providers.append(provider['Arn'])\n\n    def add_saml_provider(self, name):\n        for arn in self.existing_providers:\n            if arn.split('/')[1] == name:\n                print(name + ' already exists as a provider')\n                return False\n        response = self.iam_client.create_saml_provider(SAMLMetadataDocument=self.get_federation_metadata(), Name=name)\n        print('Create response: ' + str(response))\n        return True\n\n    def delete_saml_provider(self, name):\n        for arn in self.existing_providers:\n            if arn.split('/')[1] == name:\n                response = self.iam_client.delete_saml_provider(SAMLProviderArn=arn)\n                print('Delete response: ' + str(response))\n\ndef send_response(event, context, response_status, response_data):\n    response_body = json.dumps({\n        'Status': response_status,\n        'Reason': 'See the details in CloudWatch Log Stream: ' + context.log_stream_name,\n        'PhysicalResourceId': context.log_stream_name,\n        'StackId': event['StackId'],\n        'RequestId': event['RequestId'],\n        'LogicalResourceId': event['LogicalResourceId'],\n        'Data': response_data\n    })\n    print('ResponseURL: %s', event['ResponseURL'])\n    print('ResponseBody: %s', response_body)\n    try:\n        opener = urllib.request.build_opener(urllib.request.HTTPHandler)\n        request = urllib.request.Request(event['ResponseURL'], data=response_body.encode())\n        request.add_header('Content-Type', '')\n        request.add_header('Content-Length', len(response_body))\n        request.get_method = lambda: 'PUT'\n        response = opener.open(request)\n        print(\"Status code: %s\", response.getcode())\n        print(\"Status message: %s\", response.msg)\n    except:\n        traceback.print_exc()\n\n\ndef lambda_handler(event, context):\n    print(event)\n    print(context)\n    saml = SAMLProvider()\n    try:\n        if event['RequestType'] == 'Create':\n            saml.add_saml_provider(NAME)\n            send_response(event, context, 'SUCCESS', {\"Message\": \"Resource creation successful!\"})\n        if event['RequestType'] == 'Update':\n            saml.delete_saml_provider(NAME)\n            time.sleep(10)\n            saml.add_saml_provider(NAME)\n            send_response(event, context, 'SUCCESS', {\"Message\": \"Resource update successful!\"})\n        if event['RequestType'] == 'Delete':\n            saml.delete_saml_provider(NAME)\n            send_response(event, context, 'SUCCESS', {\"Message\": \"Resource deletion successful!\"})\n    except:\n        send_response(event, context, \"FAILED\", {\"Message\": \"Exception during processing\"})\n        traceback.print_exc()\n"
+                }
+            }
+        }
+    },
+"Outputs" : {
+	"FedrationName": {
+			"Value": {
+				"Ref": "FederationName"
+			},
+			"Description":"Federation Name for the SAML Provider",
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-FederationName"
+				}
+			}
+		}
+	}
+}

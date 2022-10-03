@@ -1,0 +1,616 @@
+{
+	"AWSTemplateFormatVersion":"2010-09-09",
+	"Description":"CloudFormation Template for Deployment of RDS instance",
+	"Metadata" : {
+        "AWS::CloudFormation::Interface" : {
+            "ParameterGroups" : [
+                {
+                    "Label" : {
+                        "default" : "Prerequisites"
+                    },
+                    "Parameters" : [
+                        "DbOptionGroup",
+						"DbParameterGroup",
+						"DbInstanceIdentifier",
+						"DbSnapshotIdentifier",
+						"AllocatedStorage"
+					]
+                },
+				{
+                    "Label" : {
+                        "default" : "Credentials"
+                    },
+                    "Parameters" : [
+                        "DbUserName",
+						"DbUserPassword"
+					]
+                },
+				{
+                    "Label" : {
+                        "default" : "Options"
+                    },
+                    "Parameters" : [
+                        "RdsInstanceCreationOption",
+						"MultiAZ",
+						"EnableBackup",
+						"DbStorageType",
+						"DbSecurityGroup",
+						"DbInstanceClass",
+						"AvailabilityZone",
+						"DbSubnetGroup",
+						"DbEngine",
+						"DbEngineVersion",
+						"DbEngineVersionMajor",
+						"LicenseModel"
+						
+                    ]
+                }
+				
+            ],
+            "ParameterLabels" : {
+                "RdsInstanceCreationOption" : {
+                    "default" : "Select the option for RDS instance creation option."
+                }
+            }
+        }
+    },
+	"Parameters": {
+		"RdsInstanceCreationOption": {
+			"Description": "Whether it is a new RDS instance or restore of old snapshot",
+			"Type": "String",
+			"Default": "NewRDS",
+			"AllowedValues":["NewRDS", "Refresh", "RollBack", "Restore"]
+		},
+		"envPrefix": {
+			"Description": "Environment name prefix.",
+			"Type": "String",
+			"Default": "RDS_DEMO"
+		},
+		"ApplicationName": {
+				"Description": "Application Name",
+				"Type": "String",
+				"Default": "RDSDEMOAPP"
+			},
+		"DbSecurityGroup": {
+				"Description": "Select the security group",
+				"Type": "AWS::EC2::SecurityGroup::Id"
+			},
+		"DbSubnetGroup": {
+				"Description": "Select the Subnet Group",
+				"Type":"String",
+				"AllowedValues": ["NONPROD_SUBNET_GROUP" , "PROD_SUBNET_GROUP" ],
+				"Default": "NONPROD_SUBNET_GROUP"
+			},
+		"ENVIRONMENT": {
+				"Description": "Enter the environment",
+				"Type": "String",
+				"Default": "Dev"
+				},
+		"JIRATicketID": {
+				"Description": "Enter the JIRA Ticket ID",
+				"Type": "String",
+				"Default": ""
+				},
+		"SNSTopicArn": {
+				"Description": "Notification SNS topic ARN",
+				"Type": "String",
+				"Default": "arn:aws:sns:ap-south-1:391897533456:uipl_codecommit"
+				},
+		"EnableBackup": {
+			"Description": "Please choose if you want enable backup (Yes/No)",
+			"Type": "String",
+			"Default": "Yes",
+			"AllowedValues": [ "Yes","No" ]  
+			},
+		"DbName" : {
+				"Description" : "Schema Name for RDS",
+				"Type": "String",
+				"MinLength": "1",
+				"MaxLength": "64",
+				"AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*",
+				"ConstraintDescription" : "must begin with a letter and contain only alphanumeric characters.",
+				"Default":"IBASE3"
+			},
+		"DbHostname": {
+				"Description": "DbServerHostname",
+				"Type": "String",
+				"Default": "osibaseint3db1"
+			},
+		"DBInstanceClass": {
+				"Description": "Type DBInstance Class.",
+				"Type": "String",
+				"Default": "db.m5.large-with-2-vCPU-and-8-Gb-Memory",
+				"AllowedValues": [ 
+					"db.m4.10xlarge-with-40-vCPU-and-160-Gb-Memory",
+					"db.m4.16xlarge-with-64-vCPU-and-256-Gb-Memory",
+					"db.m4.2xlarge-with-8-vCPU-and-32-Gb-Memory",
+					"db.m4.4xlarge-with-16-vCPU-and-64-Gb-Memory",
+					"db.m4.large-with-2-vCPU-and-8-Gb-Memory",
+					"db.m4.xlarge-with-4-vCPU-and-16-Gb-Memory",
+					"db.m5.12xlarge-with-48-vCPU-and-192-Gb-Memory",
+					"db.m5.24xlarge-with-96-vCPU-and-384-Gb-Memory",
+					"db.m5.2xlarge-with-8-vCPU-and-32-Gb-Memory",
+					"db.m5.4xlarge-with-16-vCPU-and-64-Gb-Memory",
+					"db.m5.large-with-2-vCPU-and-8-Gb-Memory",
+					"db.m5.xlarge-with-4-vCPU-and-16-Gb-Memory",
+					"db.r4.16xlarge-with-64-vCPU-and-488-Gb-Memory",
+					"db.r4.2xlarge-with-8-vCPU-and-61-Gb-Memory",
+					"db.r4.4xlarge-with-16-vCPU-and-122-Gb-Memory",
+					"db.r4.8xlarge-with-32-vCPU-and-244-Gb-Memory",
+					"db.r4.large-with-2-vCPU-and-15.25-Gb-Memory",
+					"db.r4.xlarge-with-4-vCPU-and-30.5-Gb-Memory",
+					"db.r5.12xlarge-with-48-vCPU-and-384-Gb-Memory",
+					"db.r5.24xlarge-with-96-vCPU-and-768-Gb-Memory",
+					"db.r5.2xlarge-with-8-vCPU-and-64-Gb-Memory",
+					"db.r5.4xlarge-with-16-vCPU-and-128-Gb-Memory",
+					"db.r5.large-with-2-vCPU-and-16-Gb-Memory",
+					"db.r5.xlarge-with-4-vCPU-and-32-Gb-Memory",
+					"db.t2.2xlarge-with-8-vCPU-and-32-Gb-Memory",
+					"db.t2.large-with-2-vCPU-and-8-Gb-Memory",
+					"db.t2.medium-with-2-vCPU-and-4-Gb-Memory",
+					"db.t2.micro-with-1-vCPU-and-1-Gb-Memory",
+					"db.t2.small-with-1-vCPU-and-2-Gb-Memory",
+					"db.t2.xlarge-with-4-vCPU-and-16-Gb-Memory",
+					"db.t3.2xlarge-with-8-vCPU-and-32-Gb-Memory",
+					"db.t3.large-with-2-vCPU-and-8-Gb-Memory",
+					"db.t3.medium-with-2-vCPU-and-4-Gb-Memory",
+					"db.t3.micro-with-2-vCPU-and-1-Gb-Memory",
+					"db.t3.small-with-2-vCPU-and-2-Gb-Memory",
+					"db.t3.xlarge-with-4-vCPU-and-16-Gb-Memory"
+					]
+			},
+		"Port": {
+				"Description": "Type Port.",
+				"Type": "String",
+				"Default": "1521"
+			},
+		"BackupRetentionPeriod": {
+				"Description": "Backup Retention Period for automatic snapshots",
+				"Type": "String",
+				"Default": "7"
+			},
+		"DbSnapshotIdentifier" : {
+				"Description" : " The RDS Oracle snapshot name to restore to the new DB instance.",
+				"Type": "String",
+				"Default": "ibase3-dr-snapshot"
+			},
+		"DbInstanceIdentifier" : {
+				"Description" : " The RDS Oracle snapshot name to restore to the new DB instance.",
+				"Type": "String",
+				"Default": "ibase3-dr"
+			},
+		"DbEngine": {
+				"Description": "Type Engine.",
+				"Type": "String",
+				"Default": "oracle-se2",
+				"AllowedValues": ["oracle-se2", "oracle-se1", "oracle-se", "oracle-ee"]
+			},
+		"DbEngineVersion": {
+				"Description": "Oracle Engine Version.",
+				"Type": "String",
+				"Default": "12.1.0.2.v21",
+				"AllowedValues": [
+					"11.2.0.4.v1",
+					"11.2.0.4.v1",
+					"11.2.0.4.v10",
+					"11.2.0.4.v10",
+					"11.2.0.4.v11",
+					"11.2.0.4.v11",
+					"11.2.0.4.v12",
+					"11.2.0.4.v12",
+					"11.2.0.4.v13",
+					"11.2.0.4.v13",
+					"11.2.0.4.v14",
+					"11.2.0.4.v14",
+					"11.2.0.4.v15",
+					"11.2.0.4.v15",
+					"11.2.0.4.v16",
+					"11.2.0.4.v16",
+					"11.2.0.4.v17",
+					"11.2.0.4.v17",
+					"11.2.0.4.v18",
+					"11.2.0.4.v18",
+					"11.2.0.4.v19",
+					"11.2.0.4.v19",
+					"11.2.0.4.v20",
+					"11.2.0.4.v20",
+					"11.2.0.4.v21",
+					"11.2.0.4.v21",
+					"11.2.0.4.v22",
+					"11.2.0.4.v22",
+					"11.2.0.4.v23",
+					"11.2.0.4.v23",
+					"11.2.0.4.v24",
+					"11.2.0.4.v24",
+					"11.2.0.4.v25",
+					"11.2.0.4.v25",
+					"11.2.0.4.v3",
+					"11.2.0.4.v3",
+					"11.2.0.4.v4",
+					"11.2.0.4.v4",
+					"11.2.0.4.v5",
+					"11.2.0.4.v5",
+					"11.2.0.4.v6",
+					"11.2.0.4.v6",
+					"11.2.0.4.v7",
+					"11.2.0.4.v7",
+					"11.2.0.4.v8",
+					"11.2.0.4.v8",
+					"11.2.0.4.v9",
+					"11.2.0.4.v9",
+					"12.1.0.2.v10",
+					"12.1.0.2.v11",
+					"12.1.0.2.v12",
+					"12.1.0.2.v13",
+					"12.1.0.2.v14",
+					"12.1.0.2.v15",
+					"12.1.0.2.v16",
+					"12.1.0.2.v17",
+					"12.1.0.2.v18",
+					"12.1.0.2.v19",
+					"12.1.0.2.v2",
+					"12.1.0.2.v20",
+					"12.1.0.2.v21",
+					"12.1.0.2.v3",
+					"12.1.0.2.v4",
+					"12.1.0.2.v5",
+					"12.1.0.2.v6",
+					"12.1.0.2.v7",
+					"12.1.0.2.v8",
+					"12.1.0.2.v9",
+					"12.2.0.1.ru-2018-10.rur-2018-10.r1",
+					"12.2.0.1.ru-2019-01.rur-2019-01.r1",
+					"12.2.0.1.ru-2019-04.rur-2019-04.r1",
+					"12.2.0.1.ru-2019-07.rur-2019-07.r1",
+					"12.2.0.1.ru-2019-10.rur-2019-10.r1",
+					"12.2.0.1.ru-2020-01.rur-2020-01.r1",
+					"12.2.0.1.ru-2020-04.rur-2020-04.r1",
+					"12.2.0.1.ru-2020-07.rur-2020-07.r1",
+					"18.0.0.0.ru-2019-07.rur-2019-07.r1",
+					"18.0.0.0.ru-2019-10.rur-2019-10.r1",
+					"18.0.0.0.ru-2020-01.rur-2020-01.r1",
+					"18.0.0.0.ru-2020-04.rur-2020-04.r1",
+					"18.0.0.0.ru-2020-07.rur-2020-07.r1",
+					"19.0.0.0.ru-2019-07.rur-2019-07.r1",
+					"19.0.0.0.ru-2019-10.rur-2019-10.r1",
+					"19.0.0.0.ru-2020-01.rur-2020-01.r1",
+					"19.0.0.0.ru-2020-04.rur-2020-04.r1",
+					"19.0.0.0.ru-2020-07.rur-2020-07.r1"
+					]
+			},
+		"DbEngineVersionMajor": {
+			"Description": "Type License Model.",
+			"Type": "String",
+			"Default": "12.1",
+			"AllowedValues":["11.1", "12.1", "12.2", "18", "19"]
+		},
+		"LicenseModel": {
+				"Description": "Type License Model.",
+				"Type": "String",
+				"Default": "bring-your-own-license",
+				"AllowedValues":["bring-your-own-license", "license-included"]
+			},
+		"MultiAZ": {
+				"Description": "Multi AZ Installation",
+				"Type": "String",
+				"Default": "false",
+				"AllowedValues":["true", "false"]
+			},
+		"DbOptionGroup": {
+				"Description": "RDS Option Group",
+				"Type":"String",
+				"Default":"rds-instance-stack-rdsdboptiongroup-ozbdwwd2qmd2"
+			},
+		"DbParameterGroup": {
+				"Description": "RDS Option Group",
+				"Type":"String",
+				"Default":"default.oracle-se2-12.1"
+			},
+		"DbUserName": {
+				"Description": "Master database user name.",
+				"Type":"String",
+				"Default":"osoraclerdsuser"
+			},
+		"DbUserPassword": {
+				"Description": "Master database user password.",
+				"NoEcho":true,
+				"Type":"String",
+				"Default":"osoracledbpassword"
+			},
+		"DbStorageType" : {
+				"Description": "Storage Type for the database",
+				"Type":"String",
+				"Default":"gp2",
+				"AllowedValues": [ "standard", "gp2", "io1" ]
+		},
+		"AllocatedStorage" : {
+				"Description": "Size of allocated Storage in GB",
+				"Type":"String",
+				"Default":"50"
+		},
+		"AvailabilityZone": {
+			"Description": "Select the Primary AvailabilityZone",
+			"Type": "AWS::EC2::AvailabilityZone::Name"
+		},
+		"CharacterSetName" : {
+			"Description": "Character set for the database instance",
+			"Type":"String",
+			"Default":"AL32UTF8"
+		},
+		"PreferredMaintenanceWindow":{
+			"Description": "Schedule for Maintenance window in ddd:hh24:mi-ddd:hh24:mi format",
+			"Type":"String",
+			"Default":"Sun:04:00-Sun:04:30",
+			"ConstraintDescription": "Minimum 30-minute window."
+		},
+		"DeleteProtection":{
+			"Description": "Will delete protection be enabled",
+			"Type":"String",
+			"Default":"false",
+			"AllowedValues":["true", "false"]
+		},
+		"LambdaExecutionRoleArn":{
+			"Description": "ARN of the IAM role for Lambda Execution.",
+			"Type":"String",
+			"Default":"arn:aws:iam::391897533456:role/service-role/delete-rds-instance-role-vedj52yb"
+		},
+		"TemplatS3bucket":{
+            "Description": "S3 bucket having CloudFormation templates.",
+            "Type": "String",
+			"Default":"cf-templates-bucket-automation"
+        },
+		"TemplatPath":{
+            "Description": "Path in S3 bucket having CloudFormation templates.",
+            "Type": "String",
+			"Default":"cf-templates/rds"
+        },
+		"StackRegion":{
+            "Description": "Region for cloudformation stack.",
+            "Type": "String",
+			"Default":"ap-south-1"
+        }
+},
+	"Mappings" : {	  
+		"AWSRegionName" : {	  
+			"us-east-2"			:{"Name" :	"Ohio"},
+			"us-east-1"			:{"Name" :	"NorthVirginia"},
+			"us-west-1"			:{"Name" :	"NorthCalifornia "},
+			"us-west-2"			:{"Name" :	"Oregon"},
+			"af-south-1"		:{"Name" :	"CapeTown"},
+			"ap-east-1"			:{"Name" :	"HongKong"},
+			"ap-south-1"		:{"Name" :	"Mumbai"},
+			"ap-northeast-3"	:{"Name" :	"OsakaLocal"},
+			"ap-northeast-2"	:{"Name" :	"Seoul"},
+			"ap-southeast-1"	:{"Name" :	"Singapore"},
+			"ap-southeast-2"	:{"Name" :	"Sydney"},
+			"ap-northeast-1"	:{"Name" :	"Tokyo"},
+			"ca-central-1"		:{"Name" :	"Central"},
+			"eu-central-1"		:{"Name" :	"Frankfurt"},
+			"eu-west-1"			:{"Name" :	"Ireland"},
+			"eu-west-2"			:{"Name" :	"London"},
+			"eu-south-1"		:{"Name" :	"Milan"},
+			"eu-west-3"			:{"Name" :	"Paris"},
+			"eu-north-1"		:{"Name" :	"Stockholm"},
+			"me-south-1"		:{"Name" :	"Bahrain"},
+			"sa-east-1"			:{"Name" :	"SaoPaulo"}
+		},
+		"DbInstanceTypes": {
+			"db.m4.10xlarge-with-40-vCPU-and-160-Gb-Memory"	:{"Type" :"db.m4.10xlarge"},
+			"db.m4.16xlarge-with-64-vCPU-and-256-Gb-Memory"	:{"Type" :"db.m4.16xlarge"},
+			"db.m4.2xlarge-with-8-vCPU-and-32-Gb-Memory"		:{"Type" :"db.m4.2xlarge"},
+			"db.m4.4xlarge-with-16-vCPU-and-64-Gb-Memory"		:{"Type" :"db.m4.4xlarge"},
+			"db.m4.large-with-2-vCPU-and-8-Gb-Memory"			:{"Type" :"db.m4.large"},
+			"db.m4.xlarge-with-4-vCPU-and-16-Gb-Memory"		:{"Type" :"db.m4.xlarge"},
+			"db.m5.12xlarge-with-48-vCPU-and-192-Gb-Memory"	:{"Type" :"db.m5.12xlarge"},
+			"db.m5.24xlarge-with-96-vCPU-and-384-Gb-Memory"	:{"Type" :"db.m5.24xlarge"},
+			"db.m5.2xlarge-with-8-vCPU-and-32-Gb-Memory"		:{"Type" :"db.m5.2xlarge"},
+			"db.m5.4xlarge-with-16-vCPU-and-64-Gb-Memory"		:{"Type" :"db.m5.4xlarge"},
+			"db.m5.large-with-2-vCPU-and-8-Gb-Memory"			:{"Type" :"db.m5.large"},
+			"db.m5.xlarge-with-4-vCPU-and-16-Gb-Memory"		:{"Type" :"db.m5.xlarge"},
+			"db.r4.16xlarge-with-64-vCPU-and-488-Gb-Memory"	:{"Type" :"db.r4.16xlarge"},
+			"db.r4.2xlarge-with-8-vCPU-and-61-Gb-Memory"		:{"Type" :"db.r4.2xlarge"},
+			"db.r4.4xlarge-with-16-vCPU-and-122-Gb-Memory"		:{"Type" :"db.r4.4xlarge"},
+			"db.r4.8xlarge-with-32-vCPU-and-244-Gb-Memory"		:{"Type" :"db.r4.8xlarge"},
+			"db.r4.large-with-2-vCPU-and-15.25-Gb-Memory"		:{"Type" :"db.r4.large"},
+			"db.r4.xlarge-with-4-vCPU-and-30.5-Gb-Memory"		:{"Type" :"db.r4.xlarge"},
+			"db.r5.12xlarge-with-48-vCPU-and-384-Gb-Memory"	:{"Type" :"db.r5.12xlarge"},
+			"db.r5.24xlarge-with-96-vCPU-and-768-Gb-Memory"	:{"Type" :"db.r5.24xlarge"},
+			"db.r5.2xlarge-with-8-vCPU-and-64-Gb-Memory"		:{"Type" :"db.r5.2xlarge"},
+			"db.r5.4xlarge-with-16-vCPU-and-128-Gb-Memory"		:{"Type" :"db.r5.4xlarge"},
+			"db.r5.large-with-2-vCPU-and-16-Gb-Memory"			:{"Type" :"db.r5.large"},
+			"db.r5.xlarge-with-4-vCPU-and-32-Gb-Memory"		:{"Type" :"db.r5.xlarge"},
+			"db.t2.2xlarge-with-8-vCPU-and-32-Gb-Memory"		:{"Type" :"db.t2.2xlarge"},
+			"db.t2.large-with-2-vCPU-and-8-Gb-Memory"			:{"Type" :"db.t2.large"},
+			"db.t2.medium-with-2-vCPU-and-4-Gb-Memory"			:{"Type" :"db.t2.medium"},
+			"db.t2.micro-with-1-vCPU-and-1-Gb-Memory"			:{"Type" :"db.t2.micro"},
+			"db.t2.small-with-1-vCPU-and-2-Gb-Memory"			:{"Type" :"db.t2.small"},
+			"db.t2.xlarge-with-4-vCPU-and-16-Gb-Memory"		:{"Type" :"db.t2.xlarge"},
+			"db.t3.2xlarge-with-8-vCPU-and-32-Gb-Memory"		:{"Type" :"db.t3.2xlarge"},
+			"db.t3.large-with-2-vCPU-and-8-Gb-Memory"			:{"Type" :"db.t3.large"},
+			"db.t3.medium-with-2-vCPU-and-4-Gb-Memory"			:{"Type" :"db.t3.medium"},
+			"db.t3.micro-with-2-vCPU-and-1-Gb-Memory"			:{"Type" :"db.t3.micro"},
+			"db.t3.small-with-2-vCPU-and-2-Gb-Memory"			:{"Type" :"db.t3.small"},
+			"db.t3.xlarge-with-4-vCPU-and-16-Gb-Memory"		:{"Type" :"db.t3.xlarge"}
+		}
+	},
+	"Conditions" : {
+        "CreateNewRDS" : {
+            "Fn::Equals" : [
+                {
+                    "Ref" : "RdsInstanceCreationOption"
+                },
+                "NewRDS"
+            ]
+        },
+		"RestoreRDS" : {
+            "Fn::Equals" : [
+                {
+                    "Ref" : "RdsInstanceCreationOption"
+                },
+                "Restore"
+            ]
+        },
+		"RollBackRDS" : {
+            "Fn::Equals" : [
+                {
+                    "Ref" : "RdsInstanceCreationOption"
+                },
+                "RollBack"
+            ]
+        },
+		"RefreshRDS" : {
+            "Fn::Equals" : [
+                {
+                    "Ref" : "RdsInstanceCreationOption"
+                },
+                "Refresh"
+            ]
+        }
+    },
+	"Resources":{
+	    "RDSNewInstance": {
+			"Type" : "AWS::CloudFormation::Stack",
+			"Condition": "CreateNewRDS",
+			  "DeletionPolicy": "Delete",
+			  "Properties" : {
+			  "TemplateURL" : {"Fn::Join": ["/", [ { "Fn::Sub": [ "https://s3.${StackRegion}.amazonaws.com", { "StackRegion": {"Ref" : "StackRegion" }} ]},{"Ref":"TemplatS3bucket" }, {"Ref":"TemplatPath"}, "create-rds-clean-db-template.json" ]]},
+				"Parameters" : {
+				  "DbInstanceClass" : {"Fn::FindInMap" : [ "DbInstanceTypes", { "Ref" : "DBInstanceClass" }, "Type"]},
+				  "AvailabilityZone" : {"Ref":"AvailabilityZone"},
+				  "AllocatedStorage" : {"Ref":"AllocatedStorage"},
+				  "BackupRetentionPeriod" : {"Ref":"BackupRetentionPeriod"},
+				  "DbInstanceIdentifier" : {"Ref":"DbInstanceIdentifier"},
+				  "DbName" : {"Ref":"DbName"},
+				  "DbUserName" : {"Ref":"DbUserName"},
+				  "DbUserPassword" : {"Ref":"DbUserPassword"},
+				  "DbParameterGroup" : {"Ref":"DbParameterGroup"},
+				  "DbOptionGroup" : {"Ref":"DbOptionGroup"},
+				  "Port" : {"Ref":"Port"},
+				  "DbEngine" : {"Ref":"DbEngine"},
+				  "DbEngineVersion" : {"Ref":"DbEngineVersion"},
+				  "DbEngineVersionMajor":{"Ref":"DbEngineVersionMajor"},
+				  "LicenseModel" : {"Ref":"LicenseModel"},
+				  "MultiAZ" : {"Ref":"MultiAZ"},
+				  "DbStorageType" : {"Ref":"DbStorageType"},
+				  "CharacterSetName" : {"Ref":"CharacterSetName"},
+				  "DbSubnetGroup" : {"Ref":"DbSubnetGroup"},
+				  "DbSecurityGroup" : {"Ref":"DbSecurityGroup"},
+				  "DeleteProtection" : {"Ref":"DeleteProtection"},
+				  "PreferredMaintenanceWindow" : {"Ref":"PreferredMaintenanceWindow"},
+				  "envPrefix" : {"Ref" :"envPrefix"},
+				  "ENVIRONMENT": {"Ref" :"ENVIRONMENT"},
+				  "EnableBackup": {"Ref" :"EnableBackup"},
+				  "SNSTopicArn": {"Ref" :"SNSTopicArn"},
+				  "JIRATicketID": {"Ref" :"JIRATicketID"}
+				}
+			  }	
+        },
+		"RDSInstanceFromSnapshot": {
+			  "Type" : "AWS::CloudFormation::Stack",
+			  "Condition": "RestoreRDS",
+			  "DeletionPolicy": "Delete",
+			  "Properties" : {
+			  "TemplateURL" : {"Fn::Join": ["/", [ { "Fn::Sub": [ "https://s3.${StackRegion}.amazonaws.com", { "StackRegion": {"Ref" : "StackRegion" }} ]},{"Ref":"TemplatS3bucket" }, {"Ref":"TemplatPath"}, "create-rds-from-snapshot-template.json" ]]},
+				"Parameters" : {
+				  "DbInstanceClass" : {"Fn::FindInMap" : [ "DbInstanceTypes", { "Ref" : "DBInstanceClass" }, "Type"]},
+				  "AvailabilityZone" : {"Ref":"AvailabilityZone"},
+				  "BackupRetentionPeriod" : {"Ref":"BackupRetentionPeriod"},
+				  "DbInstanceIdentifier" : {"Ref":"DbInstanceIdentifier"},
+				  "DbSnapshotIdentifier" : {"Ref":"DbSnapshotIdentifier"},
+				  "DbName" : {"Ref":"DbName"},
+				  "DbParameterGroup" : {"Ref":"DbParameterGroup"},
+				  "DbOptionGroup" : {"Ref":"DbOptionGroup"},
+				  "Port" : {"Ref":"Port"},
+				  "DbEngine" : {"Ref":"DbEngine"},
+				  "DbEngineVersion" : {"Ref":"DbEngineVersion"},
+				  "LicenseModel" : {"Ref":"LicenseModel"},
+				  "MultiAZ" : {"Ref":"MultiAZ"},
+				  "DbStorageType" : {"Ref":"DbStorageType"},
+				  "CharacterSetName" : {"Ref":"CharacterSetName"},
+				  "DbSubnetGroup" : {"Ref":"DbSubnetGroup"},
+				  "DbSecurityGroup" : {"Ref":"DbSecurityGroup"},
+				  "DeleteProtection" : {"Ref":"DeleteProtection"},
+				  "PreferredMaintenanceWindow" : {"Ref":"PreferredMaintenanceWindow"},
+				  "envPrefix" : {"Ref" :"envPrefix"},
+				  "ENVIRONMENT": {"Ref" :"ENVIRONMENT"},
+				  "EnableBackup": {"Ref" :"EnableBackup"},
+				  "SNSTopicArn": {"Ref" :"SNSTopicArn"},
+				  "JIRATicketID": {"Ref" :"JIRATicketID"}
+				}
+			  }	
+        },
+		"RDSRefreshInstance": {
+			"Type" : "AWS::CloudFormation::Stack",
+			"Condition": "RefreshRDS",
+			  "DeletionPolicy": "Delete",
+			  "Properties" : {
+			  "TemplateURL" : {"Fn::Join": ["/", [ { "Fn::Sub": [ "https://s3.${StackRegion}.amazonaws.com", { "StackRegion": {"Ref" : "StackRegion" }} ]},{"Ref":"TemplatS3bucket" }, {"Ref":"TemplatPath"}, "refresh-rds-from-old-snapshot-template.json" ]]},
+				"Parameters" : {
+				  "DbInstanceClass" : {"Fn::FindInMap" : [ "DbInstanceTypes", { "Ref" : "DBInstanceClass" }, "Type"]},
+				  "AvailabilityZone" : {"Ref":"AvailabilityZone"},
+				  "BackupRetentionPeriod" : {"Ref":"BackupRetentionPeriod"},
+				  "DbInstanceIdentifier" : {"Ref":"DbInstanceIdentifier"},
+				  "DbSnapshotIdentifier" : {"Ref":"DbSnapshotIdentifier"},
+				  "DbName" : {"Ref":"DbName"},
+				  "DbParameterGroup" : {"Ref":"DbParameterGroup"},
+				  "DbOptionGroup" : {"Ref":"DbOptionGroup"},
+				  "Port" : {"Ref":"Port"},
+				  "DbEngine" : {"Ref":"DbEngine"},
+				  "DbEngineVersion" : {"Ref":"DbEngineVersion"},
+				  "LicenseModel" : {"Ref":"LicenseModel"},
+				  "MultiAZ" : {"Ref":"MultiAZ"},
+				  "DbStorageType" : {"Ref":"DbStorageType"},
+				  "CharacterSetName" : {"Ref":"CharacterSetName"},
+				  "DbSubnetGroup" : {"Ref":"DbSubnetGroup"},
+				  "DbSecurityGroup" : {"Ref":"DbSecurityGroup"},
+				  "DeleteProtection" : {"Ref":"DeleteProtection"},
+				  "PreferredMaintenanceWindow" : {"Ref":"PreferredMaintenanceWindow"},
+				  "envPrefix" : {"Ref" :"envPrefix"},
+				  "ENVIRONMENT": {"Ref" :"ENVIRONMENT"},
+				  "EnableBackup": {"Ref" :"EnableBackup"},
+				  "SNSTopicArn": {"Ref" :"SNSTopicArn"},
+				  "JIRATicketID": {"Ref" :"JIRATicketID"},
+				  "LambdaExecutionRoleArn":{"Ref":"LambdaExecutionRoleArn"}
+				}
+			  }	
+        },
+		"RDSRollBackInstance": {
+			"Type" : "AWS::CloudFormation::Stack",
+			"Condition": "RollBackRDS",
+			  "DeletionPolicy": "Delete",
+			  "Properties" : {
+			  "TemplateURL" : {"Fn::Join": ["/", [ { "Fn::Sub": [ "https://s3.${StackRegion}.amazonaws.com", { "StackRegion": {"Ref" : "StackRegion" }} ]},{"Ref":"TemplatS3bucket" }, {"Ref":"TemplatPath"}, "roll-back-rds-to-old-snapshot-template.json" ]]},
+				"Parameters" : {
+				  "DbInstanceClass" : {"Fn::FindInMap" : [ "DbInstanceTypes", { "Ref" : "DBInstanceClass" }, "Type"]},
+				  "AvailabilityZone" : {"Ref":"AvailabilityZone"},
+				  "BackupRetentionPeriod" : {"Ref":"BackupRetentionPeriod"},
+				  "DbInstanceIdentifier" : {"Ref":"DbInstanceIdentifier"},
+				  "DbSnapshotIdentifier" : {"Ref":"DbSnapshotIdentifier"},
+				  "DbName" : {"Ref":"DbName"},
+				  "DbParameterGroup" : {"Ref":"DbParameterGroup"},
+				  "DbOptionGroup" : {"Ref":"DbOptionGroup"},
+				  "Port" : {"Ref":"Port"},
+				  "DbEngine" : {"Ref":"DbEngine"},
+				  "DbEngineVersion" : {"Ref":"DbEngineVersion"},
+				  "LicenseModel" : {"Ref":"LicenseModel"},
+				  "MultiAZ" : {"Ref":"MultiAZ"},
+				  "DbStorageType" : {"Ref":"DbStorageType"},
+				  "CharacterSetName" : {"Ref":"CharacterSetName"},
+				  "DbSubnetGroup" : {"Ref":"DbSubnetGroup"},
+				  "DbSecurityGroup" : {"Ref":"DbSecurityGroup"},
+				  "DeleteProtection" : {"Ref":"DeleteProtection"},
+				  "PreferredMaintenanceWindow" : {"Ref":"PreferredMaintenanceWindow"},
+				  "envPrefix" : {"Ref" :"envPrefix"},
+				  "ENVIRONMENT": {"Ref" :"ENVIRONMENT"},
+				  "EnableBackup": {"Ref" :"EnableBackup"},
+				  "SNSTopicArn": {"Ref" :"SNSTopicArn"},
+				  "JIRATicketID": {"Ref" :"JIRATicketID"},
+				  "LambdaExecutionRoleArn":{"Ref":"LambdaExecutionRoleArn"}
+				}
+			  }	
+        }
+   },
+	"Outputs":{
+      
+   }
+}

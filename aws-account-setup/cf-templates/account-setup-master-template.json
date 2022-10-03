@@ -1,0 +1,126 @@
+{
+"AWSTemplateFormatVersion": "2010-09-09",
+"Description": "Stack for deployment of basic services for account preparation.",
+"Parameters": {
+    "TemplatS3bucket":{
+            "Description": "Managed Policy to provide Access.",
+            "Type": "String"
+        },
+	"StackRegion":{
+            "Description": "Region where stack is to be created.",
+            "Type": "String"
+        },
+	"TemplatPath":{
+            "Description": "Managed Policy to provide Access.",
+            "Type": "String"
+        },
+    "MasterAccountNumber": {
+            "AllowedPattern": "[0-9]+",
+            "Description": "The 12 digit AWS account number to grant access to.",
+            "MaxLength": "12",
+            "MinLength": "12",
+            "Type": "String"
+        },
+	"FederationName": {
+            "Type": "String",
+            "Description": "Name of SAML provider being created in IAM"
+        },
+    "FederationMetadaBucket": {
+            "Type": "String",
+            "Description": "Bucket containing federation meta-data"
+        },
+    "FederationFile": {
+            "Type": "String",
+            "Description": "Name of file containing the federation meta-data"
+        },
+	"NotificationEmail": {
+            "Type": "String",
+            "Description": "Email-id to send notification of CloutTrail Log publishing."
+        },
+	"FederationRoleName": {
+            "Type": "String",
+            "Description": "Email-id to send notification of CloutTrail Log publishing."
+        },
+	"HardExpiry": {
+            "Description": "You can prevent IAM users from choosing a new password after their current password has expired.",
+            "Type": "String"
+        }
+    },
+"Resources": {
+     "SAMLIdProviderStack" : {
+      "Type" : "AWS::CloudFormation::Stack",
+      "DeletionPolicy": "Retain",
+      "Properties" : {
+      "TemplateURL" : {"Fn::Join": ["/", [ { "Fn::Sub": [ "https://s3.${StackRegion}.amazonaws.com", { "StackRegion": {"Ref" : "StackRegion" }} ]},{"Ref":"TemplatS3bucket" }, {"Ref":"TemplatPath"}, "basic-setup", "saml-id-provier-template.json" ]]},
+        "Parameters" : {
+          "FederationName" : {"Ref":"FederationName"},
+          "FederationMetadaBucket" : {"Ref":"FederationMetadaBucket"},
+		  "FederationFile": {"Ref":"FederationFile"}
+        }
+      }
+    },
+	"CloudTrailEnableStack" : {
+      "Type" : "AWS::CloudFormation::Stack",
+      "DeletionPolicy": "Retain",
+      "Properties" : {
+      "TemplateURL" : {"Fn::Join": ["/", [ { "Fn::Sub": [ "https://s3.${StackRegion}.amazonaws.com", { "StackRegion": {"Ref" : "StackRegion" }} ]},{"Ref":"TemplatS3bucket" }, {"Ref":"TemplatPath"}, "basic-setup", "cloud-trail-setup-templatel.json"]]},
+        "Parameters" : {
+          "OperatorEmail" : {"Ref":"NotificationEmail"}
+        }
+      }
+    },
+	"SamlRoleStack" : {
+      "Type" : "AWS::CloudFormation::Stack",
+      "DeletionPolicy": "Retain",
+      "Properties" : {
+      "TemplateURL" : {"Fn::Join": ["/", [ { "Fn::Sub": [ "https://s3.${StackRegion}.amazonaws.com", { "StackRegion": {"Ref" : "StackRegion" }} ]},{"Ref":"TemplatS3bucket" }, {"Ref":"TemplatPath"}, "basic-setup", "saml-role-create-template.json"]]},
+        "Parameters" : {
+          "SAMLProviderName" : {"Ref":"FederationName"},
+          "FederationRoleName" : {"Ref":"FederationRoleName"}
+        }
+      }
+    },
+	"ConfigSetupStack" : {
+      "Type" : "AWS::CloudFormation::Stack",
+      "DeletionPolicy": "Retain",
+      "Properties" : {
+      "TemplateURL" : {"Fn::Join": ["/", [ { "Fn::Sub": [ "https://s3.${StackRegion}.amazonaws.com", { "StackRegion": {"Ref" : "StackRegion" }} ]},{"Ref":"TemplatS3bucket" }, {"Ref":"TemplatPath"}, "basic-setup", "aws-config-setup-templatel.json"]]},
+        "Parameters" : {
+          "DeliveryFrequency" : "One_Hour"
+        }
+      }
+    },
+	"PasswordPolicyStack" : {
+      "Type" : "AWS::CloudFormation::Stack",
+      "DeletionPolicy": "Retain",
+      "Properties" : {
+      "TemplateURL" : {"Fn::Join": ["/", [ { "Fn::Sub": [ "https://s3.${StackRegion}.amazonaws.com", { "StackRegion": {"Ref" : "StackRegion" }} ]},{"Ref":"TemplatS3bucket" }, {"Ref":"TemplatPath"}, "basic-setup", "password-policy-template.json"]]},
+        "Parameters" : {
+          "HardExpiry" : {"Ref":"HardExpiry"}
+        }
+      }
+    },
+	"BackupLambdaStack" : {
+      "Type" : "AWS::CloudFormation::Stack",
+	  "DependsOn":"SAMLIdProviderStack",
+      "DeletionPolicy": "Retain",
+      "Properties" : {
+      "TemplateURL" : {"Fn::Join": ["/", [ { "Fn::Sub": [ "https://s3.${StackRegion}.amazonaws.com", { "StackRegion": {"Ref" : "StackRegion" }} ]},{"Ref":"TemplatS3bucket" }, {"Ref":"TemplatPath"}, "basic-setup", "lambda-ami-backup-delete.json"]]},
+        "Parameters" : {
+          "Bucketname" : {"Ref":"TemplatS3bucket"}
+        }
+      }
+    },
+	"EC2IamRoleStack" : {
+      "Type" : "AWS::CloudFormation::Stack",
+	  "DependsOn":"SAMLIdProviderStack",
+      "DeletionPolicy": "Retain",
+      "Properties" : {
+      "TemplateURL" : {"Fn::Join": ["/", [ { "Fn::Sub": [ "https://s3.${StackRegion}.amazonaws.com", { "StackRegion": {"Ref" : "StackRegion" }} ]},{"Ref":"TemplatS3bucket" }, {"Ref":"TemplatPath"}, "basic-setup", "iam-role-ec2-template.json"]]}
+        }
+    }
+ },
+"Outputs": {
+			
+    }
+}

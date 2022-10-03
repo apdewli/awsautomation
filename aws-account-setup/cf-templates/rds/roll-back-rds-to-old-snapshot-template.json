@@ -1,0 +1,166 @@
+{
+	"AWSTemplateFormatVersion":"2010-09-09",
+	"Description":"CloudFormation Template for Deployment of RDS instance",
+	"Parameters": {
+		"envPrefix": {
+			"Description": "Environment name prefix.",
+			"Type": "String"
+		},
+		"DbSecurityGroup": {
+				"Description": "Select the security group",
+				"Type": "String"
+			},
+		"DbSubnetGroup": {
+				"Description": "Select the Subnet Group",
+				"Type":"String"
+			},
+		"ENVIRONMENT": {
+				"Description": "Enter the environment",
+				"Type": "String"
+				},
+		"JIRATicketID": {
+				"Description": "Enter the JIRA Ticket ID",
+				"Type": "String"
+				},
+		"SNSTopicArn": {
+				"Description": "Notification SNS topic ARN",
+				"Type": "String"
+				},
+		"EnableBackup": {
+			"Description": "Please choose if you want enable backup (Yes/No)",
+			"Type": "String" 
+			},
+		"DbName" : {
+				"Description" : "Schema Name for RDS",
+				"Type": "String"
+			},
+		"DbInstanceClass": {
+				"Description": "Type DBInstance Class.",
+				"Type": "String"				
+			},
+		"Port": {
+				"Description": "Type Port.",
+				"Type": "String"
+			},
+		"BackupRetentionPeriod": {
+				"Description": "Backup Retention Period for automatic snapshots",
+				"Type": "String"
+			},
+		"DbSnapshotIdentifier" : {
+				"Description" : " The RDS Oracle snapshot name to restore to the new DB instance.",
+				"Type": "String"
+			},
+		"DbInstanceIdentifier" : {
+				"Description" : " The RDS Oracle snapshot name to restore to the new DB instance.",
+				"Type": "String"
+			},
+		"DbEngine": {
+				"Description": "Type Engine.",
+				"Type": "String"
+			},
+		"DbEngineVersion": {
+				"Description": "Oracle Engine Version.",
+				"Type": "String"
+			},
+		"LicenseModel": {
+				"Description": "Type License Model.",
+				"Type": "String"
+			},
+		"MultiAZ": {
+				"Description": "Multi AZ Installation",
+				"Type": "String"
+			},
+		"DbOptionGroup": {
+				"Description": "RDS Option Group",
+				"Type":"String"
+			},
+		"DbParameterGroup": {
+				"Description": "RDS Option Group",
+				"Type":"String"
+			},
+		"DbStorageType" : {
+				"Description": "Storage Type for the database",
+				"Type":"String"
+		},
+		"AvailabilityZone": {
+			"Description": "Select the Primary AvailabilityZone",
+			"Type": "String"
+		},
+		"CharacterSetName" : {
+			"Description": "Character set for the database instance",
+			"Type":"String"
+		},
+		"PreferredMaintenanceWindow":{
+			"Description": "Schedule for Maintenance window in ddd:hh24:mi-ddd:hh24:mi format",
+			"Type":"String"
+		},
+		"DeleteProtection":{
+			"Description": "Will delete protection be enabled",
+			"Type":"String"
+		},
+		"LambdaExecutionRoleArn":{
+			"Description": "ARN of the IAM role for Lambda Execution.",
+			"Type":"String"
+		}
+	},
+	"Resources":{
+	    "RDSRollBackInstance": {
+			"Type": "AWS::RDS::DBInstance",
+			"DeletionPolicy": "Retain",
+			"DependsOn":"TriggerRDSRollBackLambda",
+			"Properties": {
+				"DBInstanceClass": {"Ref":"DbInstanceClass"},
+				"AvailabilityZone" : {"Ref":"AvailabilityZone"},
+				"BackupRetentionPeriod": {"Ref":"BackupRetentionPeriod"},
+				"DBInstanceIdentifier": { "Ref": "DbInstanceIdentifier" },
+				"DBName": {	"Ref": "DbName"	},
+				"DBParameterGroupName": { "Ref":"DbParameterGroup" },
+				"Port": { "Ref": "Port"	},
+				"DBSnapshotIdentifier" : { "Ref":"DbSnapshotIdentifier" },
+				"Engine": {	"Ref": "DbEngine"	},
+				"EngineVersion" : {	"Ref": "DbEngineVersion"	},
+				"LicenseModel": { "Ref": "LicenseModel"	},
+				"MultiAZ": {"Ref": "MultiAZ" },
+				"StorageType": {"Ref":"DbStorageType"},
+				"CopyTagsToSnapshot" : true ,
+				"CharacterSetName":{"Ref":"CharacterSetName"},
+				"DBSubnetGroupName": { "Ref":"DbSubnetGroup" },
+				"VPCSecurityGroups": [{	"Ref": "DbSecurityGroup"}],
+				"AutoMinorVersionUpgrade" : true,
+				"DeletionProtection" : {"Ref":"DeleteProtection"},
+				"PreferredMaintenanceWindow":{"Ref":"PreferredMaintenanceWindow"}
+			}	
+        },
+		"RDSRollBackLambda": {
+		  "Type": "AWS::Lambda::Function",
+		  "Properties": {
+			"FunctionName": {"Fn::Join": ["",["RDSRollBack", {"Ref" :"DbInstanceIdentifier"}]]},
+			"Code": { 
+			"ZipFile" : "from __future__ import print_function\nimport boto3\nimport datetime\nimport botocore\nimport time\nimport sys\nimport argparse\nimport os\nimport urllib\nimport json\nfrom botocore.vendored import requests\nfrom urllib.parse import urlparse\n\n\ndef delete_rds(dbinstanceidentifier):\n    rds_client = boto3.client('rds')\n    try:\n        db_instance_response = rds_client.describe_db_instances(DBInstanceIdentifier=dbinstanceidentifier)\n        db_instance_status = db_instance_response['DBInstances'][0]['DBInstanceStatus']\n\n        if db_instance_status == 'available':\n            print(\"Deleting rds database \" + dbinstanceidentifier)\n            deleting_rds = True\n            try:\n                while deleting_rds is True:\n                    try:\n                        deleting_rds = False\n                        delete_rds_response = rds_client.delete_db_instance(\n                                DBInstanceIdentifier=dbinstanceidentifier,\n                                SkipFinalSnapshot=True,\n                                DeleteAutomatedBackups=False\n                            )\n                    except botocore.exceptions.ClientError as e:\n                        deleting_rds = True\n                        print(e)\n                        print(\"Waiting RDS to be deleted...\")\n                        time.sleep(60)\n\n                rds_deleted = True\n                print(\"RDS deletion in process...\")\n                print(delete_rds_response)\n                while rds_deleted is True:\n                    try:\n                        db_response = rds_client.describe_db_instances(DBInstanceIdentifier=dbinstanceidentifier)\n                        db_status = db_response['DBInstances'][0]['DBInstanceStatus']\n                        if db_status :\n                            print(\"Waiting rds to be deleted . . .\")\n                            time.sleep(60)\n                        else:\n                            rds_deleted = False\n                            print(\"RDS instance deleted\")\n                            return \"Success\"\n                            \n                    except botocore.exceptions.ClientError as e:\n                        rds_deleted = False\n                        print(\"RDS instance deleted\")\n                        return \"Success\"\n\n            except botocore.exceptions.ClientError as e:\n                print(\"Unable to delete db. Error : {}\".format(e))\n                return e\n\n        else:\n            return \"RDS is not in available state.\"\n\n    except botocore.exceptions.ClientError as e:\n        print(\"Db instance not found. Error : {}\".format(e))\n        return \"Action failed due to above error!\"\n\n\n\ndef respond_cloudformation(event, status, data=None):\n    responseBody = {\n        'Status': status,\n        'Reason': 'See the details in CloudWatch Log Stream',\n        'PhysicalResourceId': event['ServiceToken'],\n        'StackId': event['StackId'],\n        'RequestId': event['RequestId'],\n        'LogicalResourceId': event['LogicalResourceId'],\n        'Data': data\n    }\n\n    print('Response = ' + json.dumps(responseBody))\n    print(event)\n    requests.put(event['ResponseURL'], data=json.dumps(responseBody))\n\n\ndef lambda_handler(event,context):\n    print(event)\n    my_session = boto3.session.Session()\n    stackregion = my_session.region_name\n\n    acid_client = boto3.client(\"sts\")\n    master_account_id = acid_client.get_caller_identity()[\"Account\"]\n\n    dbinstanceidentifier = os.environ['dbinstanceidentifier']\n\n    try:\n        rds_delete_status = delete_rds(dbinstanceidentifier)\n\n        if rds_delete_status == \"Success\":\n            respond_cloudformation(event, \"SUCCESS\", { \"Message\" : \"RDS instance deleted successfully.\"})\n            print(\"RDS deleted successfully\")\n\n        else:\n            print(rds_delete_status)\n\n    except botocore.exceptions.ClientError as e:\n        return \"Db delete failed due to error!\"\n"
+			},
+			"Environment": {
+			  "Variables": {
+				"dbinstanceidentifier": {"Ref" :"DbInstanceIdentifier"}
+				}
+			 },
+			"Handler": "index.lambda_handler",
+			"Role": { "Ref":"LambdaExecutionRoleArn"},
+			"Runtime": "python3.7",
+			"Timeout": 900
+		  }
+		},
+		"TriggerRDSRollBackLambda": {
+		  "Type": "Custom::TriggerLambda",
+		  "DeletionPolicy": "Retain",
+		  "DependsOn": [
+			"RDSRollBackLambda"
+		  ],
+		  "Properties": {
+			"ServiceToken": { "Fn::GetAtt" : ["RDSRollBackLambda", "Arn"] }
+		  }
+		}
+   },
+	"Outputs":{
+      
+   }
+}
